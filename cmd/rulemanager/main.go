@@ -55,6 +55,16 @@ func main() {
 	// Use the initialized store and provider
 	ruleService := rules.NewService(templateProvider, validator)
 
+	// Seed default templates
+	// We use the unwrapped provider if we want to bypass cache or just use the provider we have.
+	// Since we have 'templateProvider' which might be CachingTemplateProvider, it's fine to use it.
+	// But CachingTemplateProvider might cache the "not found" result if we are not careful?
+	// Actually CachingTemplateProvider just delegates Create calls.
+	// Let's use the provider we have.
+	if err := rules.SeedTemplates(ctx, templateProvider, "./templates"); err != nil {
+		log.Printf("Warning: Failed to seed templates: %v", err)
+	}
+
 	// 4. Initialize API
 	apiInstance := api.NewAPI()
 	api.NewRuleHandlers(apiInstance.Huma, ruleStore, ruleService)

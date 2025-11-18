@@ -22,15 +22,15 @@ This revised structure is more idiomatic for a growing Go project and more accur
 |   |-- config.yaml          // Example configuration file
 |-- /internal
 |   |-- /database
-|   |   |-- store.go         // Defines the RuleStore and TemplateProvider interfaces
-|   |   |-- mongo_store.go   // MongoDB implementation of the interfaces
-|   |   |-- s3_store.go      // S3 implementation of the TemplateProvider
+|   |   |-- store.go            // Defines the RuleStore and TemplateProvider interfaces
+|   |   |-- mongo_store.go      // MongoDB implementation
+|   |   |-- file_store.go       // Local file system implementation
+|   |   |-- caching_store.go    // In-memory caching wrapper for TemplateProvider
 |   |-- /rules
-|   |   |-- service.go       // Core business logic for managing rules
+|   |   |-- service.go          // Core business logic for managing rules
+|   |   |-- pipelines.go        // Rule creation pipeline logic (StepRunners)
 |   |-- /validation
-|   |   |-- schema.go        // JSON Schema validation logic
-|   |   |-- promql.go        // PromQL expression validation logic
-|   |   |-- external.go      // Client for the external validation service
+|   |   |-- schema.go           // JSON Schema validation logic
 |-- /templates               // Default templates if using 'local' provider
 |   |-- /_base
 |   |   |-- openshift.json
@@ -83,7 +83,10 @@ Rule templates will be defined using [JSON Schema](https://json-schema.org/). Th
 *   **Standardization:** JSON Schema is a widely adopted standard for describing the structure of JSON data.
 *   **Validation:** The schemas can be used to validate the parameters of incoming rule creation requests.
 *   **Discoverability:** The schemas can be exposed through the API, allowing clients to dynamically understand the requirements for each rule template.
-
+*   **Database Support:**
+    *   **MongoDB:** Uses MongoDB to store rule configurations for production environments.
+    *   **Local File Store:** Supports a local file-based storage mode for development and testing without external dependencies.
+*   **External Validation:** Connects to external services to validate rule-specific details (e.g., verifying the existence of a Kafka topic and its monitorability).
 The templates will be stored as `.json` files in the `/templates` directory and loaded at startup.
 
 ### Common Rule Sections and Schema Composition
@@ -107,27 +110,37 @@ This schema defines the core identifiers for any OpenShift-related alert.
 
 ```json
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.com/schemas/openshift.json",
-  "title": "OpenShift Base",
-  "description": "Common properties for all OpenShift monitoring rules.",
-  "type": "object",
-  "properties": {
-    "environment": {
-      "type": "string",
-      "description": "The deployment environment (e.g., 'production', 'staging')."
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Openshift Monitoring Rule",
+    "type": "object",
+    "properties": {
+        "environment": {
+            "type": "string",
+            "description": "The deployment environment (e.g., production, staging)"
+        },
+        "namespace": {
+            "type": "string",
+            "description": "The Openshift namespace"
+        },
+        "workload": {
+            "type": "string",
+            "description": "The workload name (e.g., deployment name)"
+        },
+        "rule_type": {
+            "type": "string",
+            "enum": [
+                "cpu",
+                "ram"
+            ],
+            "description": "The type of resource to monitor"
+        }
     },
-    "namespace": {
-      "type": "string",
-      "description": "The OpenShift namespace."
-    },
-    "workload_labels": {
-      "type": "object",
-      "description": "Labels to identify the specific workload (e.g., deployment, statefulset).",
-      "minProperties": 1
-    }
-  },
-  "required": ["environment", "namespace", "workload_labels"]
+    "required": [
+        "environment",
+        "namespace",
+        "workload",
+        "rule_type"
+    ]
 }
 ```
 
@@ -233,47 +246,26 @@ The `.tmpl` files contain the skeleton of the Prometheus rule in YAML format. Fo
 **Example: `/templates/go_templates/openshift.tmpl`**
 
 ```yaml
-{{ if eq .rule_type "cpu_usage" }}
-- alert: HighCpuUsage_{{ .workload_labels.app }}
-  expr: |
-    # Using MetricQL 'default' to handle missing metrics gracefully
-    (
-      sum(rate(container_cpu_usage_seconds_total{namespace="{{ .namespace }}", pod=~"{{ .workload_labels.app }}-.*", container!=""}[5m])) by (pod)
-      /
-      sum(kube_pod_container_resource_limits{namespace="{{ .namespace }}", pod=~"{{ .workload_labels.app }}-.*", resource="cpu"}) by (pod)
-    ) default 0
-    * 100 > {{ .threshold_percent }}
-  for: {{ .duration }}
+{{ if eq .rule_type "cpu" }}
+- alert: HighCPUUsage_{{ .workload }}
+  expr: sum(rate(container_cpu_usage_seconds_total{namespace="{{ .namespace }}", pod=~"{{ .workload }}-.*"}[5m])) by (pod) > 0.8
+  for: 5m
   labels:
     severity: warning
     environment: {{ .environment }}
     namespace: {{ .namespace }}
-    {{- range $key, $value := .workload_labels }}
-    {{ $key }}: {{ $value }}
-    {{- end }}
   annotations:
-    summary: "High CPU usage for {{ .workload_labels.app }} in {{ .namespace }}"
-    description: "The workload {{ `{{ $labels.pod }}` }} in namespace {{ `{{ $labels.namespace }}` }} has exceeded {{ .threshold_percent }}% CPU usage for more than {{ .duration }}."
-{{ else if eq .rule_type "memory_usage" }}
-- alert: HighMemoryUsage_{{ .workload_labels.app }}
-  expr: |
-    (
-      sum(container_memory_working_set_bytes{namespace="{{ .namespace }}", pod=~"{{ .workload_labels.app }}-.*", container!=""}) by (pod)
-      /
-      sum(kube_pod_container_resource_limits{namespace="{{ .namespace }}", pod=~"{{ .workload_labels.app }}-.*", resource="memory"}) by (pod)
-    ) default 0
-    * 100 > {{ .threshold_percent }}
-  for: {{ .duration }}
+    summary: "High CPU usage for {{ .workload }}"
+{{ else if eq .rule_type "ram" }}
+- alert: HighMemoryUsage_{{ .workload }}
+  expr: sum(container_memory_working_set_bytes{namespace="{{ .namespace }}", pod=~"{{ .workload }}-.*"}) by (pod) > 1000000000
+  for: 5m
   labels:
     severity: warning
     environment: {{ .environment }}
     namespace: {{ .namespace }}
-    {{- range $key, $value := .workload_labels }}
-    {{ $key }}: {{ $value }}
-    {{- end }}
   annotations:
-    summary: "High memory usage for {{ .workload_labels.app }} in {{ .namespace }}"
-    description: "The workload {{ `{{ $labels.pod }}` }} in namespace {{ `{{ $labels.namespace }}` }} has exceeded {{ .threshold_percent }}% memory usage for more than {{ .duration }}."
+    summary: "High Memory usage for {{ .workload }}"
 {{ end }}
 ```
 *Note the escaped `{{...}}` for fields that should be templated by Prometheus itself.*
@@ -474,9 +466,8 @@ To ensure the generated rules are valid and compatible with Prometheus and Victo
     *   **Consideration:** The `expr` field in a rule template is critical and prone to syntax errors. Instead of discovering these errors only when Prometheus/VictoriaMetrics loads the rule, we should validate them proactively.
     *   **Implementation:** When a Go template for a rule is created or updated (via the API), the service should perform a validation step. It can render the template with dummy data and then use the `metricsql.Parse()` function from this package to check if the resulting query expression is syntactically valid. This provides immediate feedback to the user and prevents invalid rules from being stored. Using `metricsql` allows us to support both standard PromQL and VictoriaMetrics-specific MetricQL extensions.
 
-*   **Official Data Structures (`github.com/prometheus/common/model`):**
-    *   **Consideration:** The structure of a Prometheus alert rule is well-defined. Re-creating these structs manually in our project could lead to inconsistencies.
-    *   **Implementation:** We should use the official data structures provided by Prometheus, such as `model.Alert` and related types from this package. This ensures that the data we work with in our Go code is always 1-to-1 compatible with what Prometheus expects.
+*   **Official Data Structures:**
+    *   **Consideration:** While `github.com/prometheus/common/model` is useful, for this project we are generating YAML directly via Go templates to ensure maximum flexibility and compatibility with `vmalert`'s expected format, which might differ slightly or require specific ordering not guaranteed by struct marshaling. We rely on `metricsql` for the critical expression validation.
 
 ### Integration with VictoriaMetrics (vmalert)
 
@@ -662,6 +653,21 @@ The following endpoints will be defined to manage the rules.
 
 This approach provides a clean, RESTful API for managing rules while maintaining a flexible and maintainable data layer that can evolve with the project's needs.
 
+### Local Mode (File Store)
+
+For development and testing purposes, the Rule Manager can run in "Local Mode" using the filesystem instead of MongoDB. This is controlled by the `template_storage.type` configuration.
+
+**Configuration (`config.yaml`):**
+
+```yaml
+template_storage:
+  type: "file"
+  file:
+    path: "./data" # Directory to store rules and templates
+```
+
+When enabled, rules and templates are stored as JSON files in the specified directory. This allows developers to run the application with zero external dependencies.
+
 ### Rule Creation Pipelines
 
 To provide advanced validation, enrichment, and automation when a rule is created, we will introduce a "pipeline" concept. A pipeline is a series of declarative steps defined within the rule template's JSON schema that are executed sequentially by the Rule Manager during the rule creation process.
@@ -758,10 +764,4 @@ A client for the external validation service will be implemented in the `validat
 
 (To be added: Instructions on how to set up the development environment, including Go version, database setup, and any other dependencies.)
 
-## Initial Tasks
 
-*   [ ] Set up the basic project structure.
-*   [ ] Implement the configuration loading.
-*   [ ] Define the database interface and the MongoDB implementation.
-*   [ ] Implement the service for managing rule templates.
-*   [ ] Create the initial API endpoints.

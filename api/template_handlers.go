@@ -5,20 +5,23 @@ import (
 	"encoding/json"
 	"net/http"
 	"rulemanager/internal/database"
+	"rulemanager/internal/rules"
 	"rulemanager/internal/validation"
 
 	"github.com/danielgtaylor/huma/v2"
 )
 
 type TemplateHandlers struct {
-	store     database.TemplateProvider
-	validator validation.SchemaValidator
+	store       database.TemplateProvider
+	validator   validation.SchemaValidator
+	ruleService *rules.Service
 }
 
-func NewTemplateHandlers(api huma.API, store database.TemplateProvider, validator validation.SchemaValidator) {
+func NewTemplateHandlers(api huma.API, store database.TemplateProvider, validator validation.SchemaValidator, svc *rules.Service) {
 	h := &TemplateHandlers{
-		store:     store,
-		validator: validator,
+		store:       store,
+		validator:   validator,
+		ruleService: svc,
 	}
 
 	// Schema Endpoints
@@ -70,6 +73,15 @@ func NewTemplateHandlers(api huma.API, store database.TemplateProvider, validato
 		Summary:     "Delete a Go template",
 		Tags:        []string{"Templates"},
 	}, h.DeleteTemplate)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "validate-template",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/templates/validate",
+		Summary:     "Validate a template",
+		Description: "Dry-run validation of a template with parameters.",
+		Tags:        []string{"Templates"},
+	}, h.ValidateTemplate)
 }
 
 // Inputs/Outputs
@@ -155,4 +167,34 @@ func (h *TemplateHandlers) DeleteTemplate(ctx context.Context, input *GetTemplat
 		return nil, huma.Error500InternalServerError(err.Error())
 	}
 	return nil, nil
+}
+
+type ValidateTemplateInput struct {
+	Body struct {
+		TemplateContent string          `json:"templateContent"`
+		Parameters      json.RawMessage `json:"parameters"`
+	}
+}
+
+type ValidateTemplateOutput struct {
+	Body struct {
+		Result string `json:"result"`
+	}
+}
+
+// We need to access the rule service for validation.
+// The TemplateHandlers struct currently only has store and validator.
+// We should probably inject the rule service into TemplateHandlers as well,
+// or move the validation logic to the service.
+// The service already has ValidateTemplate method.
+// Let's update NewTemplateHandlers to accept the service.
+
+func (h *TemplateHandlers) ValidateTemplate(ctx context.Context, input *ValidateTemplateInput) (*ValidateTemplateOutput, error) {
+	result, err := h.ruleService.ValidateTemplate(ctx, input.Body.TemplateContent, input.Body.Parameters)
+	if err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
+	return &ValidateTemplateOutput{Body: struct {
+		Result string `json:"result"`
+	}{Result: result}}, nil
 }

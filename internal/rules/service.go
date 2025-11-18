@@ -111,3 +111,25 @@ func (s *Service) GenerateVMAlertConfig(ctx context.Context, rules []*database.R
 	
 	return buf.String(), nil
 }
+
+func (s *Service) ValidateTemplate(ctx context.Context, templateContent string, parameters json.RawMessage) (string, error) {
+	// 1. Parse Template
+	tmpl, err := template.New("validate").Parse(templateContent)
+	if err != nil {
+		return "", err
+	}
+
+	// 2. Unmarshal Parameters
+	var paramMap map[string]interface{}
+	if err := json.Unmarshal(parameters, &paramMap); err != nil {
+		return "", err
+	}
+
+	// 3. Execute Template
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, paramMap); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
+}

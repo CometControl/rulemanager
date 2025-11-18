@@ -1,0 +1,5 @@
+{
+  "id": "openshift",
+  "type": "template",
+  "content": "{{ if eq .rule_type \"cpu\" }}\r\n- alert: HighCPUUsage_{{ .workload }}\r\n  expr: sum(rate(container_cpu_usage_seconds_total{namespace=\"{{ .namespace }}\", pod=~\"{{ .workload }}-.*\"}[5m])) by (pod) \u003e 0.8\r\n  for: 5m\r\n  labels:\r\n    severity: warning\r\n    environment: {{ .environment }}\r\n    namespace: {{ .namespace }}\r\n  annotations:\r\n    summary: \"High CPU usage for {{ .workload }}\"\r\n{{ else if eq .rule_type \"ram\" }}\r\n- alert: HighMemoryUsage_{{ .workload }}\r\n  expr: sum(container_memory_working_set_bytes{namespace=\"{{ .namespace }}\", pod=~\"{{ .workload }}-.*\"}) by (pod) \u003e 1000000000\r\n  for: 5m\r\n  labels:\r\n    severity: warning\r\n    environment: {{ .environment }}\r\n    namespace: {{ .namespace }}\r\n  annotations:\r\n    summary: \"High Memory usage for {{ .workload }}\"\r\n{{ end }}\r\n"
+}

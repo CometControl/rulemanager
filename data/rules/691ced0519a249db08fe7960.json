@@ -1,0 +1,12 @@
+{
+  "id": "691ced0519a249db08fe7960",
+  "templateName": "openshift",
+  "parameters": {
+    "environment": "production",
+    "namespace": "backend",
+    "workload": "payment-service",
+    "rule_type": "cpu"
+  },
+  "createdAt": "2025-11-19T00:02:45.1486848+02:00",
+  "updatedAt": "2025-11-19T00:02:45.1486848+02:00"
+}

@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"rulemanager/internal/database"
 	"rulemanager/internal/rules"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type RuleHandlers struct {
@@ -138,8 +140,11 @@ func (h *RuleHandlers) CreateRule(ctx context.Context, input *CreateRuleInput) (
 
 	// 2. Create the rule in the database
 	rule := &database.Rule{
+		ID:           primitive.NewObjectID().Hex(),
 		TemplateName: input.Body.TemplateName,
 		Parameters:   input.Body.Parameters,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
 	}
 
 	if err := h.ruleStore.CreateRule(ctx, rule); err != nil {

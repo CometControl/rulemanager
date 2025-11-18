@@ -64,6 +64,22 @@ func (m *MockTemplateProvider) GetTemplate(ctx context.Context, name string) (st
 	args := m.Called(ctx, name)
 	return args.String(0), args.Error(1)
 }
+func (m *MockTemplateProvider) CreateSchema(ctx context.Context, name, content string) error {
+	args := m.Called(ctx, name, content)
+	return args.Error(0)
+}
+func (m *MockTemplateProvider) CreateTemplate(ctx context.Context, name, content string) error {
+	args := m.Called(ctx, name, content)
+	return args.Error(0)
+}
+func (m *MockTemplateProvider) DeleteSchema(ctx context.Context, name string) error {
+	args := m.Called(ctx, name)
+	return args.Error(0)
+}
+func (m *MockTemplateProvider) DeleteTemplate(ctx context.Context, name string) error {
+	args := m.Called(ctx, name)
+	return args.Error(0)
+}
 
 func TestCreateRuleEndpoint(t *testing.T) {
 	// Setup

@@ -1,0 +1,21 @@
+{{ if eq .rule_type "cpu" }}
+- alert: HighCPUUsage_{{ .workload }}
+  expr: sum(rate(container_cpu_usage_seconds_total{namespace="{{ .namespace }}", pod=~"{{ .workload }}-.*"}[5m])) by (pod) > 0.8
+  for: 5m
+  labels:
+    severity: warning
+    environment: {{ .environment }}
+    namespace: {{ .namespace }}
+  annotations:
+    summary: "High CPU usage for {{ .workload }}"
+{{ else if eq .rule_type "ram" }}
+- alert: HighMemoryUsage_{{ .workload }}
+  expr: sum(container_memory_working_set_bytes{namespace="{{ .namespace }}", pod=~"{{ .workload }}-.*"}) by (pod) > 1000000000
+  for: 5m
+  labels:
+    severity: warning
+    environment: {{ .environment }}
+    namespace: {{ .namespace }}
+  annotations:
+    summary: "High Memory usage for {{ .workload }}"
+{{ end }}

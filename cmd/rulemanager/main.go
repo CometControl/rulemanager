@@ -36,6 +36,7 @@ func main() {
 	// 4. Initialize API
 	apiInstance := api.NewAPI()
 	api.NewRuleHandlers(apiInstance.Huma, mongoStore, ruleService)
+	api.NewTemplateHandlers(apiInstance.Huma, mongoStore, validator)
 
 	// 5. Start Server
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)

@@ -1,0 +1,33 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Openshift Monitoring Rule",
+    "type": "object",
+    "properties": {
+        "environment": {
+            "type": "string",
+            "description": "The deployment environment (e.g., production, staging)"
+        },
+        "namespace": {
+            "type": "string",
+            "description": "The Openshift namespace"
+        },
+        "workload": {
+            "type": "string",
+            "description": "The workload name (e.g., deployment name)"
+        },
+        "rule_type": {
+            "type": "string",
+            "enum": [
+                "cpu",
+                "ram"
+            ],
+            "description": "The type of resource to monitor"
+        }
+    },
+    "required": [
+        "environment",
+        "namespace",
+        "workload",
+        "rule_type"
+    ]
+}

@@ -160,3 +160,33 @@ func (s *MongoStore) GetTemplate(ctx context.Context, name string) (string, erro
 	}
 	return doc.Content, nil
 }
+
+func (s *MongoStore) CreateSchema(ctx context.Context, name, content string) error {
+	_, err := s.templatesColl.UpdateOne(
+		ctx,
+		bson.M{"_id": name, "type": "schema"},
+		bson.M{"$set": bson.M{"content": content}},
+		options.Update().SetUpsert(true),
+	)
+	return err
+}
+
+func (s *MongoStore) CreateTemplate(ctx context.Context, name, content string) error {
+	_, err := s.templatesColl.UpdateOne(
+		ctx,
+		bson.M{"_id": name, "type": "template"},
+		bson.M{"$set": bson.M{"content": content}},
+		options.Update().SetUpsert(true),
+	)
+	return err
+}
+
+func (s *MongoStore) DeleteSchema(ctx context.Context, name string) error {
+	_, err := s.templatesColl.DeleteOne(ctx, bson.M{"_id": name, "type": "schema"})
+	return err
+}
+
+func (s *MongoStore) DeleteTemplate(ctx context.Context, name string) error {
+	_, err := s.templatesColl.DeleteOne(ctx, bson.M{"_id": name, "type": "template"})
+	return err
+}

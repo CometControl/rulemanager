@@ -28,4 +28,8 @@ type RuleStore interface {
 type TemplateProvider interface {
 	GetSchema(ctx context.Context, name string) (string, error)
 	GetTemplate(ctx context.Context, name string) (string, error)
+	CreateSchema(ctx context.Context, name, content string) error
+	CreateTemplate(ctx context.Context, name, content string) error
+	DeleteSchema(ctx context.Context, name string) error
+	DeleteTemplate(ctx context.Context, name string) error
 }

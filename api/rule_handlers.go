@@ -122,7 +122,12 @@ type DeleteRuleOutput struct {
 }
 
 func (h *RuleHandlers) CreateRule(ctx context.Context, input *CreateRuleInput) (*CreateRuleOutput, error) {
-	// 1. Generate the rule content (validates parameters against schema)
+	// 1. Validate Rule (Schema + Pipelines)
+	if err := h.ruleService.ValidateRule(ctx, input.Body.TemplateName, input.Body.Parameters); err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
+
+	// 2. Generate the rule content (validates template syntax)
 	// Note: We are not storing the generated content yet, just validating that it CAN be generated.
 	// In a real scenario, we might want to store the generated rule or just the parameters.
 	// The design says we store the parameters and generate on demand (or cache).
@@ -165,7 +170,12 @@ func (h *RuleHandlers) ListRules(ctx context.Context, input *ListRulesInput) (*L
 }
 
 func (h *RuleHandlers) UpdateRule(ctx context.Context, input *UpdateRuleInput) (*UpdateRuleOutput, error) {
-	// 1. Generate/Validate
+	// 1. Validate Rule (Schema + Pipelines)
+	if err := h.ruleService.ValidateRule(ctx, input.Body.TemplateName, input.Body.Parameters); err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
+
+	// 2. Generate/Validate Template
 	_, err := h.ruleService.GenerateRule(ctx, input.Body.TemplateName, input.Body.Parameters)
 	if err != nil {
 		return nil, huma.Error400BadRequest(err.Error())

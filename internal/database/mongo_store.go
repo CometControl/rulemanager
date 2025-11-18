@@ -124,8 +124,8 @@ type templateDoc struct {
 
 func (s *MongoStore) GetSchema(ctx context.Context, name string) (string, error) {
 	var doc templateDoc
-	// Assuming schema ID is just the name, or maybe "name_schema"
-	// DEVELOPMENT.md example: "_id": "openshift", "type": "schema"
+	// We assume the ID is exactly the name provided.
+	// The type filter ensures we get the schema, not the template if they share IDs (though they shouldn't).
 	err := s.templatesColl.FindOne(ctx, bson.M{"_id": name, "type": "schema"}).Decode(&doc)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -138,22 +138,10 @@ func (s *MongoStore) GetSchema(ctx context.Context, name string) (string, error)
 
 func (s *MongoStore) GetTemplate(ctx context.Context, name string) (string, error) {
 	var doc templateDoc
-	// DEVELOPMENT.md example: "_id": "openshift_template", "type": "template"
-	// This naming convention in the DB seems a bit loose.
-	// Let's assume the caller passes the exact ID or we construct it.
-	// The interface just says GetTemplate(name).
-	// If name is "openshift", maybe we look for "openshift" with type "template"?
-	// Or maybe the ID in DB is "openshift" for schema and "openshift_template" for template?
-	// Let's try to find by ID=name first, if not check type.
-	// Actually, let's stick to the DEVELOPMENT.md suggestion roughly but maybe cleaner:
-	// We can query by `name` field if we had one, but we only have `_id`.
-	// Let's assume the `name` passed to GetTemplate is the ID of the template document.
-	
+	// We assume the ID is exactly the name provided.
 	err := s.templatesColl.FindOne(ctx, bson.M{"_id": name, "type": "template"}).Decode(&doc)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			// Try appending "_template" as per DEVELOPMENT.md example if exact match fails?
-			// Or just fail. Let's fail for now, caller should know the ID.
 			return "", errors.New("template not found")
 		}
 		return "", err

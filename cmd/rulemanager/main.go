@@ -30,13 +30,17 @@ func main() {
 
 	// 3. Initialize Services
 	validator := validation.NewJSONSchemaValidator()
-	// MongoStore implements both RuleStore and TemplateProvider
-	ruleService := rules.NewService(mongoStore, validator)
+	
+	// Wrap MongoStore with CachingTemplateProvider for templates
+	cachingProvider := database.NewCachingTemplateProvider(mongoStore)
+	
+	// MongoStore implements RuleStore, CachingTemplateProvider implements TemplateProvider
+	ruleService := rules.NewService(cachingProvider, validator)
 
 	// 4. Initialize API
 	apiInstance := api.NewAPI()
 	api.NewRuleHandlers(apiInstance.Huma, mongoStore, ruleService)
-	api.NewTemplateHandlers(apiInstance.Huma, mongoStore, validator, ruleService)
+	api.NewTemplateHandlers(apiInstance.Huma, cachingProvider, validator, ruleService)
 
 	// 5. Start Server
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)

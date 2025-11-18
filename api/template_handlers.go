@@ -7,6 +7,7 @@ import (
 	"rulemanager/internal/database"
 	"rulemanager/internal/rules"
 	"rulemanager/internal/validation"
+	"text/template"
 
 	"github.com/danielgtaylor/huma/v2"
 )
@@ -146,6 +147,30 @@ func (h *TemplateHandlers) DeleteSchema(ctx context.Context, input *GetTemplateI
 }
 
 func (h *TemplateHandlers) CreateTemplate(ctx context.Context, input *CreateTemplateInput) (*struct{}, error) {
+	// Validate PromQL
+	// We need to validate that the template produces valid PromQL.
+	// However, we don't have parameters here.
+	// We can try to validate with empty parameters or dummy data if possible,
+	// but often templates need specific data to render valid PromQL.
+	// For now, let's at least check if it parses as a Go template.
+	// The ruleService.ValidateTemplate does both render and PromQL check.
+	// If we want to enforce PromQL validity, we might need example data.
+	// The DEVELOPMENT.md mentions a "dry-run" validation endpoint, but for creation it says:
+	// "On any POST request ... the service will first attempt to parse it."
+	// It doesn't explicitly say it must validate PromQL on creation without data.
+	// But it's good practice.
+	// Let's just check Go template syntax for now as per minimum requirement,
+	// since we can't easily generate valid PromQL without data.
+	
+	// Actually, we can try to parse the template itself.
+	// The service doesn't expose a raw "ParseTemplate" but we can add one or just do it here.
+	// But wait, `ruleService.ValidateTemplate` is for the `validate` endpoint.
+	
+	// Let's just ensure it's a valid Go template.
+	if _, err := template.New("check").Parse(input.Body.Content); err != nil {
+		return nil, huma.Error400BadRequest("Invalid Go template: " + err.Error())
+	}
+
 	if err := h.store.CreateTemplate(ctx, input.Body.Name, input.Body.Content); err != nil {
 		return nil, huma.Error500InternalServerError(err.Error())
 	}

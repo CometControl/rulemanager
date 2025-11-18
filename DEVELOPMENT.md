@@ -236,9 +236,12 @@ The `.tmpl` files contain the skeleton of the Prometheus rule in YAML format. Fo
 {{ if eq .rule_type "cpu_usage" }}
 - alert: HighCpuUsage_{{ .workload_labels.app }}
   expr: |
-    sum(rate(container_cpu_usage_seconds_total{namespace="{{ .namespace }}", pod=~"{{ .workload_labels.app }}-.*", container!=""}[5m])) by (pod)
-    /
-    sum(kube_pod_container_resource_limits{namespace="{{ .namespace }}", pod=~"{{ .workload_labels.app }}-.*", resource="cpu"}) by (pod)
+    # Using MetricQL 'default' to handle missing metrics gracefully
+    (
+      sum(rate(container_cpu_usage_seconds_total{namespace="{{ .namespace }}", pod=~"{{ .workload_labels.app }}-.*", container!=""}[5m])) by (pod)
+      /
+      sum(kube_pod_container_resource_limits{namespace="{{ .namespace }}", pod=~"{{ .workload_labels.app }}-.*", resource="cpu"}) by (pod)
+    ) default 0
     * 100 > {{ .threshold_percent }}
   for: {{ .duration }}
   labels:
@@ -254,9 +257,11 @@ The `.tmpl` files contain the skeleton of the Prometheus rule in YAML format. Fo
 {{ else if eq .rule_type "memory_usage" }}
 - alert: HighMemoryUsage_{{ .workload_labels.app }}
   expr: |
-    sum(container_memory_working_set_bytes{namespace="{{ .namespace }}", pod=~"{{ .workload_labels.app }}-.*", container!=""}) by (pod)
-    /
-    sum(kube_pod_container_resource_limits{namespace="{{ .namespace }}", pod=~"{{ .workload_labels.app }}-.*", resource="memory"}) by (pod)
+    (
+      sum(container_memory_working_set_bytes{namespace="{{ .namespace }}", pod=~"{{ .workload_labels.app }}-.*", container!=""}) by (pod)
+      /
+      sum(kube_pod_container_resource_limits{namespace="{{ .namespace }}", pod=~"{{ .workload_labels.app }}-.*", resource="memory"}) by (pod)
+    ) default 0
     * 100 > {{ .threshold_percent }}
   for: {{ .duration }}
   labels:
@@ -461,13 +466,13 @@ This section outlines recommended third-party and standard library packages that
 *   **AWS SDK (`github.com/aws/aws-sdk-go-v2`):** The official SDK for implementing the S3 template storage backend.
 *   **Testing (`github.com/stretchr/testify`):** Provides powerful assertion (`assert`, `require`) and mocking (`mock`) capabilities to make testing more effective and readable.
 
-**Prometheus Ecosystem Integration:**
+**Prometheus & VictoriaMetrics Ecosystem Integration:**
 
-To ensure the generated rules are valid and compatible with Prometheus, we should directly leverage packages from the Prometheus ecosystem.
+To ensure the generated rules are valid and compatible with Prometheus and VictoriaMetrics, we should directly leverage packages from the ecosystem.
 
-*   **PromQL Expression Validation (`github.com/prometheus/prometheus/promql/parser`):**
-    *   **Consideration:** The `expr` field in a rule template is critical and prone to syntax errors. Instead of discovering these errors only when Prometheus loads the rule, we should validate them proactively.
-    *   **Implementation:** When a Go template for a rule is created or updated (via the API), the service should perform a validation step. It can render the template with dummy data and then use the `parser.ParseExpr()` function from this package to check if the resulting PromQL expression is syntactically valid. This provides immediate feedback to the user and prevents invalid rules from being stored.
+*   **PromQL/MetricQL Expression Validation (`github.com/VictoriaMetrics/metricsql`):**
+    *   **Consideration:** The `expr` field in a rule template is critical and prone to syntax errors. Instead of discovering these errors only when Prometheus/VictoriaMetrics loads the rule, we should validate them proactively.
+    *   **Implementation:** When a Go template for a rule is created or updated (via the API), the service should perform a validation step. It can render the template with dummy data and then use the `metricsql.Parse()` function from this package to check if the resulting query expression is syntactically valid. This provides immediate feedback to the user and prevents invalid rules from being stored. Using `metricsql` allows us to support both standard PromQL and VictoriaMetrics-specific MetricQL extensions.
 
 *   **Official Data Structures (`github.com/prometheus/common/model`):**
     *   **Consideration:** The structure of a Prometheus alert rule is well-defined. Re-creating these structs manually in our project could lead to inconsistencies.
@@ -538,34 +543,34 @@ To ensure that rules are queried against the correct Time-Series Database (TSDB)
 
 The datasource information is defined in a `datasource` object within the schema. This object is not part of the user-provided `properties` but is a top-level key in the schema file itself, serving as metadata.
 
-**Example: Part of a Template Schema (`/templates/thanos_slo_burn.json`)**
+**Example: Part of a Template Schema (`/templates/vm_single_node.json`)**
 
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.com/schemas/thanos_slo_burn.json",
-  "title": "Thanos SLO Burn Rate",
-  "description": "Alerts when the error budget burn rate for a service is too high.",
+  "$id": "https://example.com/schemas/vm_single_node.json",
+  "title": "VictoriaMetrics Single Node Alert",
+  "description": "Alerts for a single node VictoriaMetrics instance.",
   "type": "object",
   "datasource": {
-    "type": "thanos",
-    "url": "https://thanos-query.example.com:9090",
+    "type": "victoriametrics",
+    "url": "http://vm-single-node.example.com:8428",
     "credentials": {
-      "type": "bearer_token",
-      "secret_ref": "thanos-api-token"
+      "type": "basic_auth",
+      "secret_ref": "vm-read-creds"
     }
   },
   "properties": {
-    "service_name": {
+    "instance_name": {
       "type": "string",
-      "description": "The name of the service."
+      "description": "The name of the VictoriaMetrics instance."
     },
-    "burn_threshold": {
+    "disk_usage_threshold": {
       "type": "number",
-      "description": "The burn rate threshold (e.g., 14.4)."
+      "description": "Disk usage threshold percentage (e.g., 85)."
     }
   },
-  "required": ["service_name", "burn_threshold"]
+  "required": ["instance_name", "disk_usage_threshold"]
 }
 ```
 
@@ -656,6 +661,94 @@ The following endpoints will be defined to manage the rules.
     *   **Logic:** Calls `RuleStore.DeleteRule()`. **Must trigger `vmalert` cache invalidation.**
 
 This approach provides a clean, RESTful API for managing rules while maintaining a flexible and maintainable data layer that can evolve with the project's needs.
+
+### Rule Creation Pipelines
+
+To provide advanced validation, enrichment, and automation when a rule is created, we will introduce a "pipeline" concept. A pipeline is a series of declarative steps defined within the rule template's JSON schema that are executed sequentially by the Rule Manager during the rule creation process.
+
+This approach allows us to add complex behaviors (like checking if a metric exists before creating the rule) without modifying the core service code, making the system highly extensible and keeping the logic tied to the template it belongs to.
+
+**1. Declaring Pipelines in the JSON Schema:**
+
+A new top-level `pipelines` array can be added to any rule template's JSON schema. Each object in the array represents a step to be executed.
+
+**2. Conditional Execution for Consolidated Templates:**
+
+For consolidated templates that handle multiple rule types (e.g., a single `openshift.json` for both CPU and memory alerts), pipeline steps can be executed conditionally. This is achieved by adding a `condition` object to the pipeline step definition. The step will only run if the user's input matches the condition.
+
+**Example: Schema with a Conditional Metric Validation Pipeline**
+
+This example for a consolidated OpenShift template shows how to run a specific validation check only when the corresponding `rule_type` is selected by the user.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpenShift Consolidated Rules",
+  "datasource": {
+    "type": "prometheus",
+    "url": "https://prometheus.example.com:9090"
+  },
+  "pipelines": [
+    {
+      "name": "Validate OpenShift CPU Metric",
+      "condition": { "property": "rule_type", "equals": "cpu_usage" },
+      "type": "validate_metric_exists",
+      "parameters": {
+        "metric_name": "container_cpu_usage_seconds_total",
+        "labels": "{{ .workload_labels }}"
+      }
+    },
+    {
+      "name": "Validate OpenShift Memory Metric",
+      "condition": { "property": "rule_type", "equals": "memory_usage" },
+      "type": "validate_metric_exists",
+      "parameters": {
+        "metric_name": "container_memory_working_set_bytes",
+        "labels": "{{ .workload_labels }}"
+      }
+    }
+  ],
+  "properties": {
+    "rule_type": {
+      "type": "string",
+      "enum": ["cpu_usage", "memory_usage"]
+    },
+    "workload_labels": {
+      "type": "object",
+      "description": "Labels to identify the specific workload (e.g., deployment, statefulset)."
+    }
+    // ... other properties
+  }
+}
+```
+
+**3. Pipeline Processor Implementation:**
+
+The Rule Manager service will include a `PipelineProcessor`. When a rule is created:
+
+1.  The processor retrieves the `pipelines` array from the template schema.
+2.  It iterates through each step.
+3.  For each step, it first checks if a `condition` is present. If so, it evaluates the condition against the user's input parameters. If the condition is not met, the step is skipped.
+4.  If the step is to be executed, the processor looks up a registered "Step Runner" that matches the `type` (e.g., `validate_metric_exists`).
+5.  It executes the Step Runner, passing it the rule's parameters and the parameters defined for that pipeline step. The runner can also access the `datasource` information from the schema.
+6.  If any step fails (e.g., a validation step returns `false`), the entire pipeline is halted, and a descriptive error is returned to the user, preventing the rule from being created.
+
+**4. Core Pipeline Step Runner: `validate_metric_exists`**
+
+We will implement a set of built-in Step Runners. The first one is for validation.
+
+*   **`validate_metric_exists`**:
+    *   **Purpose:** Checks if a given metric, optionally with specific labels, exists in the target TSDB. This prevents the creation of rules that will never fire due to a typo or misconfiguration.
+    *   **Logic:**
+        1.  The runner receives the `metric_name` and `labels` from the pipeline step's parameters, templating them with the user's input where necessary.
+        2.  It connects to the `datasource` specified in the schema (e.g., a Prometheus endpoint).
+        3.  It constructs a query to check for the existence of the metric. For Prometheus, a simple way to do this is to query the `/api/v1/series` endpoint with a `match[]` parameter (e.g., `GET /api/v1/series?match[]={__name__="up",job="prometheus"}`).
+        4.  It executes the query. If the query returns an empty result, it means no time series match, and the validation step fails.
+        5.  If the step fails, the pipeline is halted, and an error is returned to the user.
+
+This pipeline system provides a powerful mechanism for adding custom, declarative logic to the rule creation process in a maintainable and extensible way.
+
+
 
 ### External Service Integration
 

@@ -22,9 +22,13 @@ type DatabaseConfig struct {
 }
 
 type StorageConfig struct {
-	Type    string        `mapstructure:"type"`
-	MongoDB DatabaseConfig `mapstructure:"mongodb"`
-	// S3 S3Config `mapstructure:"s3"`
+	Type    string          `mapstructure:"type"`
+	MongoDB DatabaseConfig  `mapstructure:"mongodb"`
+	File    FileStoreConfig `mapstructure:"file"`
+}
+
+type FileStoreConfig struct {
+	Path string `mapstructure:"path"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -32,6 +36,7 @@ func LoadConfig() (*Config, error) {
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath("./config")
 	viper.AddConfigPath(".")
+	viper.AddConfigPath("../..") // Check project root if running from cmd/rulemanager
 
 	viper.SetEnvPrefix("RULEMANAGER")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

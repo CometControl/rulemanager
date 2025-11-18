@@ -1,0 +1,14 @@
+server:
+  port: 8080
+
+database:
+  connection_string: "mongodb://localhost:27017"
+  database_name: "rulemanager"
+
+template_storage:
+  type: "file"
+  file:
+    path: "./data"
+  mongodb:
+    connection_string: "mongodb://localhost:27017"
+    database_name: "rule_templates"

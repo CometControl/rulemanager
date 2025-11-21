@@ -11,6 +11,7 @@ type VMAlertHandler struct {
 	*RuleHandlers
 }
 
+// RegisterVMAlertEndpoint registers the vmalert configuration endpoint.
 func (h *RuleHandlers) RegisterVMAlertEndpoint(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "get-vmalert-config",
@@ -26,6 +27,7 @@ type GetVMAlertConfigOutput struct {
 	Body []byte `contentType:"application/x-yaml"`
 }
 
+// GetVMAlertConfig generates and returns the vmalert configuration.
 func (h *RuleHandlers) GetVMAlertConfig(ctx context.Context, input *struct{}) (*GetVMAlertConfigOutput, error) {
 	// 1. List all rules
 	// In a real scenario, we might want to paginate or stream, but for now fetch all.

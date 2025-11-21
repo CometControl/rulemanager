@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/spf13/viper"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLoadConfig(t *testing.T) {
@@ -23,15 +23,16 @@ func TestLoadConfig(t *testing.T) {
 	// Let's check the implementation.
 	// It returns error if ReadInConfig fails.
 	// So we should create a dummy config file.
-	
+
 	f, err := os.Create("config.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.WriteString("server:\n  port: 8080\ndatabase:\n  connection_string: \"default\"\n  database_name: \"default\"\n")
+	_, err = f.WriteString("server:\n  port: 8080\ndatabase:\n  connection_string: \"default\"\n  database_name: \"default\"\n")
+	assert.NoError(t, err)
 	f.Close()
 	defer os.Remove("config.yaml")
-	
+
 	// Reset viper
 	viper.Reset()
 

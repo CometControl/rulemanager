@@ -16,6 +16,7 @@ type FileStore struct {
 	mu       sync.RWMutex
 }
 
+// NewFileStore creates a new FileStore with the given base path.
 func NewFileStore(basePath string) (*FileStore, error) {
 	// Ensure base directories exist
 	if err := os.MkdirAll(filepath.Join(basePath, "rules"), 0755); err != nil {
@@ -30,12 +31,14 @@ func NewFileStore(basePath string) (*FileStore, error) {
 	}, nil
 }
 
+// Close closes the FileStore (no-op).
 func (s *FileStore) Close(ctx context.Context) error {
 	return nil
 }
 
 // --- RuleStore Implementation ---
 
+// CreateRule saves a new rule to the file store.
 func (s *FileStore) CreateRule(ctx context.Context, rule *Rule) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -59,6 +62,7 @@ func (s *FileStore) CreateRule(ctx context.Context, rule *Rule) error {
 	return os.WriteFile(path, data, 0644)
 }
 
+// GetRule retrieves a rule by ID from the file store.
 func (s *FileStore) GetRule(ctx context.Context, id string) (*Rule, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -79,6 +83,7 @@ func (s *FileStore) GetRule(ctx context.Context, id string) (*Rule, error) {
 	return &rule, nil
 }
 
+// UpdateRule updates an existing rule in the file store.
 func (s *FileStore) UpdateRule(ctx context.Context, id string, rule *Rule) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -101,6 +106,7 @@ func (s *FileStore) UpdateRule(ctx context.Context, id string, rule *Rule) error
 	return os.WriteFile(path, data, 0644)
 }
 
+// DeleteRule removes a rule from the file store.
 func (s *FileStore) DeleteRule(ctx context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -115,6 +121,7 @@ func (s *FileStore) DeleteRule(ctx context.Context, id string) error {
 	return nil
 }
 
+// ListRules retrieves a paginated list of rules from the file store.
 func (s *FileStore) ListRules(ctx context.Context, limit, offset int) ([]*Rule, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -173,26 +180,32 @@ type fileTemplateDoc struct {
 	Content string `json:"content"`
 }
 
+// GetTemplate retrieves a template by name from the file store.
 func (s *FileStore) GetTemplate(ctx context.Context, name string) (string, error) {
 	return s.readTemplateFile(name, "template")
 }
 
+// GetSchema retrieves a schema by name from the file store.
 func (s *FileStore) GetSchema(ctx context.Context, name string) (string, error) {
 	return s.readTemplateFile(name, "schema")
 }
 
+// CreateTemplate saves a new template to the file store.
 func (s *FileStore) CreateTemplate(ctx context.Context, name string, content string) error {
 	return s.writeTemplateFile(name, "template", content)
 }
 
+// CreateSchema saves a new schema to the file store.
 func (s *FileStore) CreateSchema(ctx context.Context, name string, content string) error {
 	return s.writeTemplateFile(name, "schema", content)
 }
 
+// DeleteTemplate removes a template from the file store.
 func (s *FileStore) DeleteTemplate(ctx context.Context, name string) error {
 	return s.deleteTemplateFile(name, "template")
 }
 
+// DeleteSchema removes a schema from the file store.
 func (s *FileStore) DeleteSchema(ctx context.Context, name string) error {
 	return s.deleteTemplateFile(name, "schema")
 }

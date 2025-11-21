@@ -12,12 +12,15 @@ type SchemaValidator interface {
 	Validate(schema string, data []byte) error
 }
 
+// JSONSchemaValidator implements SchemaValidator using gojsonschema.
 type JSONSchemaValidator struct{}
 
+// NewJSONSchemaValidator creates a new JSONSchemaValidator.
 func NewJSONSchemaValidator() *JSONSchemaValidator {
 	return &JSONSchemaValidator{}
 }
 
+// Validate validates a JSON document against a JSON schema.
 func (v *JSONSchemaValidator) Validate(schema string, data []byte) error {
 	schemaLoader := gojsonschema.NewStringLoader(schema)
 	documentLoader := gojsonschema.NewBytesLoader(data)

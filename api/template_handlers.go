@@ -12,12 +12,14 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 )
 
+// TemplateHandlers handles template-related API requests.
 type TemplateHandlers struct {
 	store       database.TemplateProvider
 	validator   validation.SchemaValidator
 	ruleService *rules.Service
 }
 
+// NewTemplateHandlers registers template handlers with the API.
 func NewTemplateHandlers(api huma.API, store database.TemplateProvider, validator validation.SchemaValidator, svc *rules.Service) {
 	h := &TemplateHandlers{
 		store:       store,
@@ -117,8 +119,22 @@ type GetTemplateOutput struct {
 	}
 }
 
+type ValidateTemplateInput struct {
+	Body struct {
+		TemplateContent string          `json:"templateContent"`
+		Parameters      json.RawMessage `json:"parameters"`
+	}
+}
+
+type ValidateTemplateOutput struct {
+	Body struct {
+		Result string `json:"result"`
+	}
+}
+
 // Handlers
 
+// CreateSchema creates or updates a schema.
 func (h *TemplateHandlers) CreateSchema(ctx context.Context, input *CreateSchemaInput) (*struct{}, error) {
 	// Parse content to check/set $schema
 	var schemaMap map[string]interface{}
@@ -153,6 +169,7 @@ func (h *TemplateHandlers) CreateSchema(ctx context.Context, input *CreateSchema
 	return nil, nil
 }
 
+// GetSchema retrieves a schema by name.
 func (h *TemplateHandlers) GetSchema(ctx context.Context, input *GetTemplateInput) (*GetSchemaOutput, error) {
 	content, err := h.store.GetSchema(ctx, input.Name)
 	if err != nil {
@@ -163,6 +180,7 @@ func (h *TemplateHandlers) GetSchema(ctx context.Context, input *GetTemplateInpu
 	}{Content: json.RawMessage(content)}}, nil
 }
 
+// DeleteSchema deletes a schema by name.
 func (h *TemplateHandlers) DeleteSchema(ctx context.Context, input *GetTemplateInput) (*struct{}, error) {
 	if err := h.store.DeleteSchema(ctx, input.Name); err != nil {
 		return nil, huma.Error500InternalServerError(err.Error())
@@ -170,6 +188,7 @@ func (h *TemplateHandlers) DeleteSchema(ctx context.Context, input *GetTemplateI
 	return nil, nil
 }
 
+// CreateTemplate creates or updates a Go template.
 func (h *TemplateHandlers) CreateTemplate(ctx context.Context, input *CreateTemplateInput) (*struct{}, error) {
 	// Validate PromQL
 	// We need to validate that the template produces valid PromQL.
@@ -201,6 +220,7 @@ func (h *TemplateHandlers) CreateTemplate(ctx context.Context, input *CreateTemp
 	return nil, nil
 }
 
+// GetTemplate retrieves a Go template by name.
 func (h *TemplateHandlers) GetTemplate(ctx context.Context, input *GetTemplateInput) (*GetTemplateOutput, error) {
 	content, err := h.store.GetTemplate(ctx, input.Name)
 	if err != nil {
@@ -211,6 +231,7 @@ func (h *TemplateHandlers) GetTemplate(ctx context.Context, input *GetTemplateIn
 	}{Content: content}}, nil
 }
 
+// DeleteTemplate deletes a Go template by name.
 func (h *TemplateHandlers) DeleteTemplate(ctx context.Context, input *GetTemplateInput) (*struct{}, error) {
 	if err := h.store.DeleteTemplate(ctx, input.Name); err != nil {
 		return nil, huma.Error500InternalServerError(err.Error())
@@ -218,26 +239,7 @@ func (h *TemplateHandlers) DeleteTemplate(ctx context.Context, input *GetTemplat
 	return nil, nil
 }
 
-type ValidateTemplateInput struct {
-	Body struct {
-		TemplateContent string          `json:"templateContent"`
-		Parameters      json.RawMessage `json:"parameters"`
-	}
-}
-
-type ValidateTemplateOutput struct {
-	Body struct {
-		Result string `json:"result"`
-	}
-}
-
-// We need to access the rule service for validation.
-// The TemplateHandlers struct currently only has store and validator.
-// We should probably inject the rule service into TemplateHandlers as well,
-// or move the validation logic to the service.
-// The service already has ValidateTemplate method.
-// Let's update NewTemplateHandlers to accept the service.
-
+// ValidateTemplate validates a template with parameters.
 func (h *TemplateHandlers) ValidateTemplate(ctx context.Context, input *ValidateTemplateInput) (*ValidateTemplateOutput, error) {
 	result, err := h.ruleService.ValidateTemplate(ctx, input.Body.TemplateContent, input.Body.Parameters)
 	if err != nil {

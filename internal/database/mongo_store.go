@@ -18,6 +18,7 @@ type MongoStore struct {
 	templatesColl *mongo.Collection
 }
 
+// NewMongoStore creates a new MongoStore with the given connection string and database name.
 func NewMongoStore(ctx context.Context, connectionString, dbName string) (*MongoStore, error) {
 	clientOptions := options.Client().ApplyURI(connectionString)
 	client, err := mongo.Connect(ctx, clientOptions)
@@ -38,12 +39,14 @@ func NewMongoStore(ctx context.Context, connectionString, dbName string) (*Mongo
 	}, nil
 }
 
+// Close closes the MongoDB connection.
 func (s *MongoStore) Close(ctx context.Context) error {
 	return s.client.Disconnect(ctx)
 }
 
 // RuleStore Implementation
 
+// CreateRule saves a new rule to MongoDB.
 func (s *MongoStore) CreateRule(ctx context.Context, rule *Rule) error {
 	if rule.ID == "" {
 		rule.ID = primitive.NewObjectID().Hex()
@@ -57,6 +60,7 @@ func (s *MongoStore) CreateRule(ctx context.Context, rule *Rule) error {
 	return err
 }
 
+// GetRule retrieves a rule by ID from MongoDB.
 func (s *MongoStore) GetRule(ctx context.Context, id string) (*Rule, error) {
 	var rule Rule
 	err := s.rulesColl.FindOne(ctx, bson.M{"_id": id}).Decode(&rule)
@@ -69,6 +73,7 @@ func (s *MongoStore) GetRule(ctx context.Context, id string) (*Rule, error) {
 	return &rule, nil
 }
 
+// ListRules retrieves a paginated list of rules from MongoDB.
 func (s *MongoStore) ListRules(ctx context.Context, offset, limit int) ([]*Rule, error) {
 	opts := options.Find().SetSkip(int64(offset)).SetLimit(int64(limit))
 	cursor, err := s.rulesColl.Find(ctx, bson.M{}, opts)
@@ -84,6 +89,7 @@ func (s *MongoStore) ListRules(ctx context.Context, offset, limit int) ([]*Rule,
 	return rules, nil
 }
 
+// UpdateRule updates an existing rule in MongoDB.
 func (s *MongoStore) UpdateRule(ctx context.Context, id string, rule *Rule) error {
 	rule.UpdatedAt = time.Now()
 	update := bson.M{
@@ -103,6 +109,7 @@ func (s *MongoStore) UpdateRule(ctx context.Context, id string, rule *Rule) erro
 	return nil
 }
 
+// DeleteRule removes a rule from MongoDB.
 func (s *MongoStore) DeleteRule(ctx context.Context, id string) error {
 	result, err := s.rulesColl.DeleteOne(ctx, bson.M{"_id": id})
 	if err != nil {
@@ -122,6 +129,7 @@ type templateDoc struct {
 	Content string `bson:"content"`
 }
 
+// GetSchema retrieves a schema by name from MongoDB.
 func (s *MongoStore) GetSchema(ctx context.Context, name string) (string, error) {
 	var doc templateDoc
 	// We assume the ID is exactly the name provided.
@@ -136,6 +144,7 @@ func (s *MongoStore) GetSchema(ctx context.Context, name string) (string, error)
 	return doc.Content, nil
 }
 
+// GetTemplate retrieves a template by name from MongoDB.
 func (s *MongoStore) GetTemplate(ctx context.Context, name string) (string, error) {
 	var doc templateDoc
 	// We assume the ID is exactly the name provided.
@@ -149,6 +158,7 @@ func (s *MongoStore) GetTemplate(ctx context.Context, name string) (string, erro
 	return doc.Content, nil
 }
 
+// CreateSchema saves a new schema to MongoDB.
 func (s *MongoStore) CreateSchema(ctx context.Context, name, content string) error {
 	_, err := s.templatesColl.UpdateOne(
 		ctx,
@@ -159,6 +169,7 @@ func (s *MongoStore) CreateSchema(ctx context.Context, name, content string) err
 	return err
 }
 
+// CreateTemplate saves a new template to MongoDB.
 func (s *MongoStore) CreateTemplate(ctx context.Context, name, content string) error {
 	_, err := s.templatesColl.UpdateOne(
 		ctx,
@@ -169,11 +180,13 @@ func (s *MongoStore) CreateTemplate(ctx context.Context, name, content string) e
 	return err
 }
 
+// DeleteSchema removes a schema from MongoDB.
 func (s *MongoStore) DeleteSchema(ctx context.Context, name string) error {
 	_, err := s.templatesColl.DeleteOne(ctx, bson.M{"_id": name, "type": "schema"})
 	return err
 }
 
+// DeleteTemplate removes a template from MongoDB.
 func (s *MongoStore) DeleteTemplate(ctx context.Context, name string) error {
 	_, err := s.templatesColl.DeleteOne(ctx, bson.M{"_id": name, "type": "template"})
 	return err

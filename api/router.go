@@ -8,11 +8,13 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// API represents the main API structure.
 type API struct {
 	Router chi.Router
 	Huma   huma.API
 }
 
+// NewAPI creates a new API instance.
 func NewAPI() *API {
 	router := chi.NewMux()
 	config := huma.DefaultConfig("Rule Manager API", "1.0.0")
@@ -24,6 +26,7 @@ func NewAPI() *API {
 	}
 }
 
+// Start starts the API server on the given address.
 func (a *API) Start(addr string) error {
 	return http.ListenAndServe(addr, a.Router)
 }

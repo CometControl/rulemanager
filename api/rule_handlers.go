@@ -12,11 +12,13 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// RuleHandlers handles rule-related API requests.
 type RuleHandlers struct {
 	ruleStore   database.RuleStore
 	ruleService *rules.Service
 }
 
+// NewRuleHandlers registers rule handlers with the API.
 func NewRuleHandlers(api huma.API, rs database.RuleStore, svc *rules.Service) {
 	h := &RuleHandlers{
 		ruleStore:   rs,
@@ -123,6 +125,7 @@ type DeleteRuleOutput struct {
 	Status int
 }
 
+// CreateRule creates a new rule.
 func (h *RuleHandlers) CreateRule(ctx context.Context, input *CreateRuleInput) (*CreateRuleOutput, error) {
 	// 1. Validate Rule (Schema + Pipelines)
 	if err := h.ruleService.ValidateRule(ctx, input.Body.TemplateName, input.Body.Parameters); err != nil {
@@ -156,6 +159,7 @@ func (h *RuleHandlers) CreateRule(ctx context.Context, input *CreateRuleInput) (
 	return resp, nil
 }
 
+// GetRule retrieves a rule by ID.
 func (h *RuleHandlers) GetRule(ctx context.Context, input *GetRuleInput) (*GetRuleOutput, error) {
 	rule, err := h.ruleStore.GetRule(ctx, input.ID)
 	if err != nil {
@@ -165,6 +169,7 @@ func (h *RuleHandlers) GetRule(ctx context.Context, input *GetRuleInput) (*GetRu
 	return &GetRuleOutput{Body: rule}, nil
 }
 
+// ListRules lists all rules with pagination.
 func (h *RuleHandlers) ListRules(ctx context.Context, input *ListRulesInput) (*ListRulesOutput, error) {
 	rules, err := h.ruleStore.ListRules(ctx, input.Offset, input.Limit)
 	if err != nil {
@@ -174,6 +179,7 @@ func (h *RuleHandlers) ListRules(ctx context.Context, input *ListRulesInput) (*L
 	return &ListRulesOutput{Body: rules}, nil
 }
 
+// UpdateRule updates an existing rule.
 func (h *RuleHandlers) UpdateRule(ctx context.Context, input *UpdateRuleInput) (*UpdateRuleOutput, error) {
 	// 1. Validate Rule (Schema + Pipelines)
 	if err := h.ruleService.ValidateRule(ctx, input.Body.TemplateName, input.Body.Parameters); err != nil {
@@ -201,6 +207,7 @@ func (h *RuleHandlers) UpdateRule(ctx context.Context, input *UpdateRuleInput) (
 	return resp, nil
 }
 
+// DeleteRule deletes a rule by ID.
 func (h *RuleHandlers) DeleteRule(ctx context.Context, input *DeleteRuleInput) (*DeleteRuleOutput, error) {
 	if err := h.ruleStore.DeleteRule(ctx, input.ID); err != nil {
 		return nil, huma.Error500InternalServerError(err.Error())

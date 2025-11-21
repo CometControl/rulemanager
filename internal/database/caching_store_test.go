@@ -123,7 +123,7 @@ func TestCachingTemplateProvider_InvalidateSchema(t *testing.T) {
 
 	// First, cache a schema
 	mockProvider.On("GetSchema", ctx, "test").Return("schema content", nil).Once()
-	cachingProvider.GetSchema(ctx, "test")
+	_, _ = cachingProvider.GetSchema(ctx, "test")
 
 	// Invalidate
 	cachingProvider.InvalidateSchema("test")
@@ -144,7 +144,7 @@ func TestCachingTemplateProvider_InvalidateTemplate(t *testing.T) {
 
 	// First, cache a template
 	mockProvider.On("GetTemplate", ctx, "test").Return("template content", nil).Once()
-	cachingProvider.GetTemplate(ctx, "test")
+	_, _ = cachingProvider.GetTemplate(ctx, "test")
 
 	// Invalidate
 	cachingProvider.InvalidateTemplate("test")

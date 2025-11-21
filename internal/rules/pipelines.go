@@ -41,6 +41,7 @@ type PipelineProcessor struct {
 	runners map[string]StepRunner
 }
 
+// NewPipelineProcessor creates a new PipelineProcessor with built-in runners.
 func NewPipelineProcessor() *PipelineProcessor {
 	p := &PipelineProcessor{
 		runners: make(map[string]StepRunner),
@@ -50,10 +51,12 @@ func NewPipelineProcessor() *PipelineProcessor {
 	return p
 }
 
+// RegisterRunner registers a new step runner with the given name.
 func (p *PipelineProcessor) RegisterRunner(name string, runner StepRunner) {
 	p.runners[name] = runner
 }
 
+// Execute runs a sequence of pipeline steps.
 func (p *PipelineProcessor) Execute(ctx context.Context, schemaPipelines []PipelineStep, datasource *DatasourceConfig, ruleParams json.RawMessage) error {
 	var paramsMap map[string]interface{}
 	if err := json.Unmarshal(ruleParams, &paramsMap); err != nil {
@@ -92,6 +95,7 @@ type ValidateMetricExistsRunner struct {
 	Client *http.Client
 }
 
+// Run executes the metric validation step.
 func (r *ValidateMetricExistsRunner) Run(ctx context.Context, datasource *DatasourceConfig, ruleParams json.RawMessage, stepParams map[string]interface{}) error {
 	if datasource == nil {
 		return fmt.Errorf("datasource configuration is required for metric validation")
@@ -103,85 +107,32 @@ func (r *ValidateMetricExistsRunner) Run(ctx context.Context, datasource *Dataso
 
 	// 1. Extract parameters
 	metricNameTmpl, _ := stepParams["metric_name"].(string)
-	labelsTmpl, _ := stepParams["labels"].(string) // Optional
+	// labelsTmpl, _ := stepParams["labels"].(string) // Optional, currently unused
 
 	if metricNameTmpl == "" {
 		return fmt.Errorf("metric_name is required")
 	}
 
 	// 2. Render templates
+	// 2. Render templates
 	var paramsMap map[string]interface{}
-	json.Unmarshal(ruleParams, &paramsMap) // Already checked in processor, but safe to redo
+	if err := json.Unmarshal(ruleParams, &paramsMap); err != nil {
+		return fmt.Errorf("failed to unmarshal rule parameters: %w", err)
+	}
 
 	metricName, err := renderString(metricNameTmpl, paramsMap)
 	if err != nil {
 		return fmt.Errorf("failed to render metric_name: %w", err)
 	}
 
-	var labels string
-	if labelsTmpl != "" {
-		labels, err = renderString(labelsTmpl, paramsMap)
-		if err != nil {
-			return fmt.Errorf("failed to render labels: %w", err)
-		}
-	}
+	// Labels logic is placeholder for now
+	// if labelsTmpl != "" { ... }
 
 	// 3. Construct Query
-	// Query: count({__name__="metric", labels...})
-	// If labels is a JSON object string (from schema), we might need to parse it to PromQL label selector format?
-	// The example in DEVELOPMENT.md shows: "labels": "{{ .workload_labels }}" where workload_labels is an object.
-	// If the user passes an object, the template renders it as map[...].
-	// We need to convert that map to PromQL selector syntax: key="value",...
-	// OR, if the user puts PromQL syntax directly.
-	// Let's assume for now we need to handle the map case if it comes from a JSON object parameter.
-	
-	// Actually, `renderString` will render the map using Go's default formatting which is `map[k:v]`. This is NOT PromQL.
-	// We need a helper to render labels correctly.
-	// However, for simplicity in this iteration, let's assume the template output or the parameter is handled.
-	// Wait, the example says: "labels": "{{ .workload_labels }}".
-	// If .workload_labels is `{"app": "foo"}`, Go template renders it as `map[app:foo]`.
-	// We probably need a custom template function or logic to format it.
-	// Let's try to parse the rendered string as a map if possible, or just rely on the user to provide a string that works?
-	// Better: The `stepParams` are `interface{}`. If `labels` is a string, we render it.
-	// If we want to support the object-to-promql conversion, we should do it here.
-	
-	// Let's construct the selector.
-	selector := fmt.Sprintf("{__name__=%q", metricName)
-	
-	// If labels was rendered, we need to append it. 
-	// But converting `map[app:foo]` string back is hard.
-	// Instead, let's look at `ruleParams` directly.
-	// If the step param `labels` refers to a rule param that is an object, we should iterate that object.
-	// But `stepParams["labels"]` is a string template.
-	// We can add a template function `promLabels`?
-	// For now, let's do a basic implementation:
-	// If `labels` string is not empty, we try to append it.
-	// If it looks like `map[...]` we might fail.
-	// Let's assume for the MVP that the user provides a string or we just check the metric name.
-	// Actually, checking just the metric name is often enough for "existence".
-	// Let's stick to metric name for now to be safe, or append labels if they are simple.
-	
-	// Refined approach for MVP: Just check metric name.
-	// selector := fmt.Sprintf("{__name__=%q}", metricName)
-	
-	// If we want to support labels, we really need that `promLabels` function or similar.
-	// Let's assume the user handles it or we skip labels for this specific MVP step.
-	// Re-reading requirements: "checks if a given metric, optionally with specific labels".
-	// Let's try to support it if it's a string that looks like PromQL.
-	
-	if labels != "" {
-		// If labels starts with {, strip it? No, it's inside the braces.
-		// Let's just append it with a comma if it's not empty.
-		// But we need to be careful about syntax.
-		// Let's just use the metric name for the "exists" check to be robust.
-		// Checking specific series existence is stricter.
-		// Let's ignore labels for the very first iteration to ensure stability, 
-		// or try to use them if they don't look like a Go map.
-	}
-	selector += "}"
+	selector := fmt.Sprintf("{__name__=%q}", metricName)
 
 	query := fmt.Sprintf("count(%s)", selector)
-	
+
 	// 4. Execute Query
 	u, err := url.Parse(datasource.URL)
 	if err != nil {
@@ -232,11 +183,11 @@ func (r *ValidateMetricExistsRunner) Run(ctx context.Context, datasource *Dataso
 	if len(result.Data.Result) == 0 {
 		return fmt.Errorf("metric '%s' not found", metricName)
 	}
-	
-	// We could check the value but count() returns empty if no series match? 
+
+	// We could check the value but count() returns empty if no series match?
 	// Actually count() over empty vector returns empty vector.
 	// So len(Result) == 0 means 0 count.
-	
+
 	return nil
 }
 

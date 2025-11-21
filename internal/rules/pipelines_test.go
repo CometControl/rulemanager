@@ -15,9 +15,9 @@ func TestPipelineProcessor_Execute(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("query")
 		if query == `count({__name__="existing_metric"})` {
-			w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[123,"1"]}]}}`))
+			_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[123,"1"]}]}}`))
 		} else {
-			w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[]}}`))
+			_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[]}}`))
 		}
 	}))
 	defer ts.Close()
@@ -154,9 +154,9 @@ func TestPipelineProcessor_TargetValidation(t *testing.T) {
 		query := r.URL.Query().Get("query")
 		// Simulate namespace validation - namespace "demo" exists, others don't
 		if query == `count({__name__="kube_namespace_status_phase"})` {
-			w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[123,"1"]}]}}`))
+			_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[123,"1"]}]}}`))
 		} else {
-			w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[]}}`))
+			_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[]}}`))
 		}
 	}))
 	defer ts.Close()

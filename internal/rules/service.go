@@ -13,12 +13,14 @@ import (
 	"github.com/VictoriaMetrics/metricsql"
 )
 
+// Service provides methods for managing rules and templates.
 type Service struct {
 	templateProvider  database.TemplateProvider
 	validator         validation.SchemaValidator
 	pipelineProcessor *PipelineProcessor
 }
 
+// NewService creates a new Service with the given dependencies.
 func NewService(tp database.TemplateProvider, v validation.SchemaValidator) *Service {
 	return &Service{
 		templateProvider:  tp,
@@ -27,6 +29,7 @@ func NewService(tp database.TemplateProvider, v validation.SchemaValidator) *Ser
 	}
 }
 
+// GenerateRule generates a rule configuration from a template and parameters.
 func (s *Service) GenerateRule(ctx context.Context, templateName string, parameters json.RawMessage) (string, error) {
 	// 1. Get Schema
 	schemaStr, err := s.templateProvider.GetSchema(ctx, templateName)
@@ -68,6 +71,7 @@ func (s *Service) renderTemplate(name, tmplStr string, parameters json.RawMessag
 	return buf.String(), nil
 }
 
+// ValidateRule validates parameters against the schema and executes any defined pipelines.
 func (s *Service) ValidateRule(ctx context.Context, templateName string, parameters json.RawMessage) error {
 	// 1. Get Schema
 	schemaStr, err := s.templateProvider.GetSchema(ctx, templateName)
@@ -99,11 +103,12 @@ func (s *Service) ValidateRule(ctx context.Context, templateName string, paramet
 	return nil
 }
 
+// GenerateVMAlertConfig generates a vmalert configuration for a list of rules.
 func (s *Service) GenerateVMAlertConfig(ctx context.Context, rules []*database.Rule) (string, error) {
 	groups := make(map[string][]string)
-	
+
 	for _, rule := range rules {
-		// We use the rule ID or template name for grouping? 
+		// We use the rule ID or template name for grouping?
 		// Let's group by template name as before.
 		ruleContent, err := s.GenerateRule(ctx, rule.TemplateName, rule.Parameters)
 		if err != nil {
@@ -117,7 +122,7 @@ func (s *Service) GenerateVMAlertConfig(ctx context.Context, rules []*database.R
 
 	var buf bytes.Buffer
 	buf.WriteString("groups:\n")
-	
+
 	for groupName, ruleContents := range groups {
 		buf.WriteString(fmt.Sprintf("  - name: %s\n", groupName))
 		buf.WriteString("    rules:\n")
@@ -130,10 +135,11 @@ func (s *Service) GenerateVMAlertConfig(ctx context.Context, rules []*database.R
 			}
 		}
 	}
-	
+
 	return buf.String(), nil
 }
 
+// ValidateTemplate renders a template with parameters and validates the generated query.
 func (s *Service) ValidateTemplate(ctx context.Context, templateContent string, parameters json.RawMessage) (string, error) {
 	// 1. Render Template
 	rendered, err := s.renderTemplate("validate", templateContent, parameters)
@@ -159,13 +165,13 @@ func (s *Service) ValidateQuery(ruleYaml string) error {
 			expr = strings.TrimSpace(expr)
 			// Handle multi-line strings (basic support)
 			if expr == "|" || expr == ">" {
-				continue 
+				continue
 			}
 			// Remove quotes if present
 			if strings.HasPrefix(expr, "\"") && strings.HasSuffix(expr, "\"") {
 				expr = strings.Trim(expr, "\"")
 			}
-			
+
 			if _, err := metricsql.Parse(expr); err != nil {
 				return err
 			}

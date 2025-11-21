@@ -1,21 +1,36 @@
+{{- $target := .target -}}
+{{- range .rules }}
 {{ if eq .rule_type "cpu" }}
-- alert: HighCPUUsage_{{ .workload }}
-  expr: sum(rate(container_cpu_usage_seconds_total{namespace="{{ .namespace }}", pod=~"{{ .workload }}-.*"}[5m])) by (pod) > 0.8
+- alert: HighCPUUsage_{{ $target.workload }}
+  expr: sum(rate(container_cpu_usage_seconds_total{namespace="{{ $target.namespace }}", pod=~"{{ $target.workload }}-.*"}[5m])) by (pod) {{ .operator }} {{ .threshold }}
   for: 5m
   labels:
-    severity: warning
-    environment: {{ .environment }}
-    namespace: {{ .namespace }}
+    severity: {{ .severity }}
+    environment: {{ $target.environment }}
+    namespace: {{ $target.namespace }}
+    {{- range $key, $value := .labels }}
+    {{ $key }}: {{ $value }}
+    {{- end }}
   annotations:
-    summary: "High CPU usage for {{ .workload }}"
+    summary: "High CPU usage for {{ $target.workload }}"
+    {{- range $key, $value := .annotations }}
+    {{ $key }}: {{ $value }}
+    {{- end }}
 {{ else if eq .rule_type "ram" }}
-- alert: HighMemoryUsage_{{ .workload }}
-  expr: sum(container_memory_working_set_bytes{namespace="{{ .namespace }}", pod=~"{{ .workload }}-.*"}) by (pod) > 1000000000
+- alert: HighMemoryUsage_{{ $target.workload }}
+  expr: sum(container_memory_working_set_bytes{namespace="{{ $target.namespace }}", pod=~"{{ $target.workload }}-.*"}) by (pod) {{ .operator }} {{ .threshold }}
   for: 5m
   labels:
-    severity: warning
-    environment: {{ .environment }}
-    namespace: {{ .namespace }}
+    severity: {{ .severity }}
+    environment: {{ $target.environment }}
+    namespace: {{ $target.namespace }}
+    {{- range $key, $value := .labels }}
+    {{ $key }}: {{ $value }}
+    {{- end }}
   annotations:
-    summary: "High Memory usage for {{ .workload }}"
+    summary: "High Memory usage for {{ $target.workload }}"
+    {{- range $key, $value := .annotations }}
+    {{ $key }}: {{ $value }}
+    {{- end }}
 {{ end }}
+{{- end }}

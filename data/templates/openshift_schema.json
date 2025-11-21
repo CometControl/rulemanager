@@ -1,5 +1,0 @@
-{
-  "id": "openshift",
-  "type": "schema",
-  "content": "{\r\n    \"$schema\": \"http://json-schema.org/draft-07/schema\",\r\n    \"title\": \"Openshift Monitoring Rule\",\r\n    \"type\": \"object\",\r\n    \"properties\": {\r\n        \"environment\": {\r\n            \"type\": \"string\",\r\n            \"description\": \"The deployment environment (e.g., production, staging)\"\r\n        },\r\n        \"namespace\": {\r\n            \"type\": \"string\",\r\n            \"description\": \"The Openshift namespace\"\r\n        },\r\n        \"workload\": {\r\n            \"type\": \"string\",\r\n            \"description\": \"The workload name (e.g., deployment name)\"\r\n        },\r\n        \"rule_type\": {\r\n            \"type\": \"string\",\r\n            \"enum\": [\r\n                \"cpu\",\r\n                \"ram\"\r\n            ],\r\n            \"description\": \"The type of resource to monitor\"\r\n        }\r\n    },\r\n    \"required\": [\r\n        \"environment\",\r\n        \"namespace\",\r\n        \"workload\",\r\n        \"rule_type\"\r\n    ]\r\n}"
-}

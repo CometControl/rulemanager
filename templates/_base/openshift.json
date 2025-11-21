@@ -3,31 +3,108 @@
     "title": "Openshift Monitoring Rule",
     "type": "object",
     "properties": {
-        "environment": {
-            "type": "string",
-            "description": "The deployment environment (e.g., production, staging)"
-        },
-        "namespace": {
-            "type": "string",
-            "description": "The Openshift namespace"
-        },
-        "workload": {
-            "type": "string",
-            "description": "The workload name (e.g., deployment name)"
-        },
-        "rule_type": {
-            "type": "string",
-            "enum": [
-                "cpu",
-                "ram"
+        "target": {
+            "type": "object",
+            "properties": {
+                "environment": {
+                    "type": "string",
+                    "description": "The deployment environment (e.g., production, staging)"
+                },
+                "namespace": {
+                    "type": "string",
+                    "description": "The Openshift namespace"
+                },
+                "workload": {
+                    "type": "string",
+                    "description": "The workload name (e.g., deployment name)"
+                }
+            },
+            "required": [
+                "environment",
+                "namespace",
+                "workload"
             ],
-            "description": "The type of resource to monitor"
+            "description": "The target entity for the rules"
+        },
+        "rules": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "rule_type": {
+                        "type": "string",
+                        "enum": [
+                            "cpu",
+                            "ram"
+                        ],
+                        "description": "The type of resource to monitor"
+                    },
+                    "severity": {
+                        "type": "string",
+                        "enum": [
+                            "critical",
+                            "warning",
+                            "info"
+                        ],
+                        "description": "The severity of the alert"
+                    },
+                    "operator": {
+                        "type": "string",
+                        "enum": [
+                            ">",
+                            "<",
+                            ">=",
+                            "<=",
+                            "==",
+                            "!="
+                        ],
+                        "description": "The comparison operator"
+                    },
+                    "threshold": {
+                        "type": "number",
+                        "description": "The threshold value for the alert"
+                    },
+                    "labels": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        },
+                        "description": "Additional labels to add to the alert"
+                    },
+                    "annotations": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        },
+                        "description": "Additional annotations to add to the alert"
+                    }
+                },
+                "required": [
+                    "rule_type",
+                    "severity",
+                    "operator",
+                    "threshold"
+                ]
+            },
+            "description": "List of rules to apply to the target"
         }
     },
     "required": [
-        "environment",
-        "namespace",
-        "workload",
-        "rule_type"
+        "target",
+        "rules"
+    ],
+    "datasource": {
+        "type": "prometheus",
+        "url": "http://localhost:9090"
+    },
+    "pipelines": [
+        {
+            "name": "validate_namespace_metrics",
+            "type": "validate_metric_exists",
+            "parameters": {
+                "metric_name": "kube_namespace_status_phase",
+                "labels": "{namespace=\"{{ .target.namespace }}\"}"
+            }
+        }
     ]
 }

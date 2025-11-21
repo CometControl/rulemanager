@@ -147,3 +147,86 @@ func TestPipelineProcessor_Execute(t *testing.T) {
 		})
 	}
 }
+
+func TestPipelineProcessor_TargetValidation(t *testing.T) {
+	// Mock datasource that validates namespace metrics
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		// Simulate namespace validation - namespace "demo" exists, others don't
+		if query == `count({__name__="kube_namespace_status_phase"})` {
+			w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[123,"1"]}]}}`))
+		} else {
+			w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[]}}`))
+		}
+	}))
+	defer ts.Close()
+
+	processor := NewPipelineProcessor()
+	runner := processor.runners["validate_metric_exists"].(*ValidateMetricExistsRunner)
+	runner.Client = ts.Client()
+
+	datasource := &DatasourceConfig{
+		Type: "prometheus",
+		URL:  ts.URL,
+	}
+
+	tests := []struct {
+		name        string
+		pipelines   []PipelineStep
+		params      map[string]interface{}
+		expectError bool
+	}{
+		{
+			name: "Valid Target - Namespace Exists",
+			pipelines: []PipelineStep{
+				{
+					Name: "validate_namespace_metrics",
+					Type: "validate_metric_exists",
+					Parameters: map[string]interface{}{
+						"metric_name": "kube_namespace_status_phase",
+					},
+				},
+			},
+			params: map[string]interface{}{
+				"target": map[string]string{
+					"environment": "prod",
+					"namespace":   "demo",
+					"workload":    "app",
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "Invalid Target - Namespace Doesn't Exist",
+			pipelines: []PipelineStep{
+				{
+					Name: "validate_namespace_metrics",
+					Type: "validate_metric_exists",
+					Parameters: map[string]interface{}{
+						"metric_name": "kube_pod_info",
+					},
+				},
+			},
+			params: map[string]interface{}{
+				"target": map[string]string{
+					"environment": "prod",
+					"namespace":   "nonexistent",
+					"workload":    "app",
+				},
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			paramsJSON, _ := json.Marshal(tt.params)
+			err := processor.Execute(context.Background(), tt.pipelines, datasource, paramsJSON)
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

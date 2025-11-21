@@ -1,35 +1,94 @@
 # Rule Manager
 
-## Overview
-
-Rule Manager is a Go-based service for managing alerting rules, inspired by Prometheus. It provides a centralized system for defining, creating, and validating alerting rules from predefined templates. This service is designed to be flexible and extensible, with initial support for MongoDB as the backend database.
+Rule Manager is a robust, Go-based service designed to manage alerting rules in a centralized and standardized way. Inspired by Prometheus, it allows users to define, create, and validate alerting rules from predefined templates, ensuring consistency and reducing errors in monitoring configurations.
 
 ## Features
 
-*   **Rule Templating:** Create and store templates for various alerting rules.
-*   **API for Rule Management:**
-    *   Apply new alerting rules based on existing templates.
-    *   Validate the parameters of new rule requests.
-    *   Discover available rule templates and their required fields.
-*   **Database Support:** Uses MongoDB to store rule configurations, with a flexible architecture to support other databases in the future.
-*   **External Validation:** Connects to external services to validate rule-specific details (e.g., verifying the existence of a Kafka topic and its monitorability).
-
-## Architecture
-
-The system is composed of the following components:
-
-*   **Rule Manager Service:** A Go application that exposes a REST API for managing alerting rules.
-*   **MongoDB:** The primary database for storing rule templates and configurations.
-*   **External Service:** A service that the Rule Manager communicates with to validate rule-specific information.
+*   **Template-Based Rule Creation**: Generate complex Prometheus/VictoriaMetrics rules from simplified, user-friendly JSON templates.
+*   **Dynamic Template Management**: Create, update, and manage rule templates and their schemas via API without redeploying the service.
+*   **Advanced Validation**:
+    *   **JSON Schema**: Validates user input against strict schemas.
+    *   **Pipeline Validation**: Executes custom validation steps (e.g., checking if a metric exists in the TSDB) before creating a rule.
+    *   **Dry-Run**: Test templates and data before saving them.
+*   **Multi-Backend Support**:
+    *   **Storage**: Supports MongoDB for production and a local file system mode for development.
+    *   **Datasources**: Configurable integration with Prometheus, VictoriaMetrics, and Thanos.
+*   **VictoriaMetrics Integration**: Exposes generated rules in a `vmalert`-compatible YAML format via a dedicated endpoint.
 
 ## Getting Started
 
-(To be added: Instructions on how to build, configure, and run the application.)
+### Prerequisites
 
-## Configuration
+*   **Go**: Version 1.21 or higher.
+*   **MongoDB**: (Optional) For production storage. The service can run in "Local Mode" using the filesystem.
 
-(To be added: Details on how to configure the application, including database connection strings and external service endpoints.)
+### Installation
 
-## Contributing
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/your-org/rulemanager.git
+    cd rulemanager
+    ```
 
-Contributions are welcome! Please feel free to submit a pull request.
+2.  Build the application:
+    ```bash
+    go build -o rulemanager ./cmd/rulemanager
+    ```
+
+### Configuration
+
+The application is configured via a `config.yaml` file. An example configuration is provided in `config/config.yaml`.
+
+Key configuration sections:
+*   `server`: Port and host settings.
+*   `database`: MongoDB connection details (if used).
+*   `template_storage`: Choose between `local` (filesystem), `mongodb`, or `s3`.
+
+### Running the Application
+
+To run the application in Local Mode (using the `./data` directory for storage):
+
+```bash
+./rulemanager
+```
+
+Ensure your `config.yaml` is set up correctly or pass configuration via environment variables.
+
+## Usage
+
+### Creating a Rule
+
+You can create a new rule by sending a POST request to the API.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/rules \
+  -H "Content-Type: application/json" \
+  -d '{
+    "templateName": "openshift",
+    "parameters": {
+      "environment": "production",
+      "namespace": "payment-service",
+      "workload": "payment-api",
+      "rule_type": "cpu"
+    }
+  }'
+```
+
+### Retrieving Rules for vmalert
+
+Configure your `vmalert` to poll this endpoint:
+
+```bash
+curl http://localhost:8080/api/v1/rules/vmalert
+```
+
+## Architecture
+
+The Rule Manager follows a clean architecture pattern:
+*   **API Layer**: Built with [Huma](https://huma.rocks/), providing robust routing and validation.
+*   **Service Layer**: Handles business logic, template rendering, and pipeline execution.
+*   **Data Layer**: Abstracted storage interfaces allowing for swappable backends (MongoDB, File, S3).
+
+For more detailed information, please refer to the documentation in the `docs/` directory:
+*   [Business Requirements](docs/business_requirements.md)
+*   [Technical Specification](docs/technical_spec.md)

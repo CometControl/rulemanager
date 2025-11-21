@@ -120,10 +120,34 @@ type GetTemplateOutput struct {
 // Handlers
 
 func (h *TemplateHandlers) CreateSchema(ctx context.Context, input *CreateSchemaInput) (*struct{}, error) {
-	// Validate that content is valid JSON schema?
-	// For now just store it.
-	contentStr := string(input.Body.Content)
-	if err := h.store.CreateSchema(ctx, input.Body.Name, contentStr); err != nil {
+	// Parse content to check/set $schema
+	var schemaMap map[string]interface{}
+	if err := json.Unmarshal(input.Body.Content, &schemaMap); err != nil {
+		return nil, huma.Error400BadRequest("Invalid JSON content: " + err.Error())
+	}
+
+	const supportedSchema = "http://json-schema.org/draft-07/schema"
+
+	if val, ok := schemaMap["$schema"]; ok {
+		version, ok := val.(string)
+		if !ok {
+			return nil, huma.Error400BadRequest("$schema must be a string")
+		}
+		if version != supportedSchema {
+			return nil, huma.Error400BadRequest("Unsupported schema version. Only " + supportedSchema + " is supported.")
+		}
+	} else {
+		// Default to supported schema
+		schemaMap["$schema"] = supportedSchema
+	}
+
+	// Re-marshal to ensure we store the updated version
+	updatedContent, err := json.MarshalIndent(schemaMap, "", "  ")
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to process schema: " + err.Error())
+	}
+
+	if err := h.store.CreateSchema(ctx, input.Body.Name, string(updatedContent)); err != nil {
 		return nil, huma.Error500InternalServerError(err.Error())
 	}
 	return nil, nil
@@ -161,11 +185,11 @@ func (h *TemplateHandlers) CreateTemplate(ctx context.Context, input *CreateTemp
 	// But it's good practice.
 	// Let's just check Go template syntax for now as per minimum requirement,
 	// since we can't easily generate valid PromQL without data.
-	
+
 	// Actually, we can try to parse the template itself.
 	// The service doesn't expose a raw "ParseTemplate" but we can add one or just do it here.
 	// But wait, `ruleService.ValidateTemplate` is for the `validate` endpoint.
-	
+
 	// Let's just ensure it's a valid Go template.
 	if _, err := template.New("check").Parse(input.Body.Content); err != nil {
 		return nil, huma.Error400BadRequest("Invalid Go template: " + err.Error())

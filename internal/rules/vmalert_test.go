@@ -103,47 +103,60 @@ expr: sum(rate(cpu[5m])) > 0.9`
 
 	t.Run("InvalidQuery", func(t *testing.T) {
 		tmplContent := `alert: Test
-expr: this is not valid promql!`
+expr: ""`
 		params := json.RawMessage(`{}`)
 
-		rendered, err := service.ValidateTemplate(ctx, tmplContent, params)
+		_, err := service.ValidateTemplate(ctx, tmplContent, params)
 
-		assert.Error(t, err)
-		assert.Empty(t, rendered)
-		assert.Contains(t, err.Error(), "invalid query")
+		if assert.Error(t, err) {
+			assert.Contains(t, err.Error(), "invalid rule content")
+		}
 	})
 }
 
-func TestService_ValidateQuery(t *testing.T) {
+func TestService_ValidateRuleContent(t *testing.T) {
 	service := &Service{}
 
-	t.Run("ValidQuery", func(t *testing.T) {
+	t.Run("ValidRule", func(t *testing.T) {
 		ruleYaml := `alert: HighCPU
 expr: sum(rate(cpu_usage[5m])) > 0.9
 for: 5m`
 
-		err := service.ValidateQuery(ruleYaml)
+		err := service.ValidateRuleContent(ruleYaml)
 
 		assert.NoError(t, err)
 	})
 
-	t.Run("ValidQueryWithQuotes", func(t *testing.T) {
+	t.Run("ValidRuleWithQuotes", func(t *testing.T) {
 		ruleYaml := `alert: HighCPU
 expr: "sum(rate(cpu_usage[5m])) > 0.9"
 for: 5m`
 
-		err := service.ValidateQuery(ruleYaml)
+		err := service.ValidateRuleContent(ruleYaml)
 
 		assert.NoError(t, err)
 	})
 
 	t.Run("InvalidQuery", func(t *testing.T) {
 		ruleYaml := `alert: Test
-expr: this is not valid!`
+expr: rate(cpu[5m` // Missing closing paren
 
-		err := service.ValidateQuery(ruleYaml)
+		err := service.ValidateRuleContent(ruleYaml)
 
-		assert.Error(t, err)
+		if assert.Error(t, err) {
+			assert.Contains(t, err.Error(), "invalid MetricsQL expression")
+		}
+	})
+
+	t.Run("InvalidMetricsQLSyntax", func(t *testing.T) {
+		ruleYaml := `alert: Test
+expr: "this is not valid!"`
+
+		err := service.ValidateRuleContent(ruleYaml)
+
+		if assert.Error(t, err) {
+			assert.Contains(t, err.Error(), "invalid MetricsQL expression")
+		}
 	})
 
 	t.Run("MultilineStringIndicator", func(t *testing.T) {
@@ -151,20 +164,20 @@ expr: this is not valid!`
 expr: |
   sum(rate(cpu[5m]))`
 
-		// The "|" is skipped, so no error
-		err := service.ValidateQuery(ruleYaml)
+		// The "|" is valid yaml
+		err := service.ValidateRuleContent(ruleYaml)
 
 		assert.NoError(t, err)
 	})
 
-	t.Run("NoExpressions", func(t *testing.T) {
+	t.Run("MissingExpr", func(t *testing.T) {
 		ruleYaml := `alert: Test
 for: 5m
 labels:
   severity: warning`
 
-		err := service.ValidateQuery(ruleYaml)
+		err := service.ValidateRuleContent(ruleYaml)
 
-		assert.NoError(t, err) // No expr to validate
+		assert.Error(t, err) // Alert rules must have an expr
 	})
 }

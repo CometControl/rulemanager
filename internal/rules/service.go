@@ -10,7 +10,9 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/config"
 	"github.com/VictoriaMetrics/metricsql"
+	"gopkg.in/yaml.v2"
 )
 
 // Service provides methods for managing rules and templates.
@@ -108,12 +110,10 @@ func (s *Service) GenerateVMAlertConfig(ctx context.Context, rules []*database.R
 	groups := make(map[string][]string)
 
 	for _, rule := range rules {
-		// We use the rule ID or template name for grouping?
-		// Let's group by template name as before.
+		// Group rules by template name for organizational clarity
 		ruleContent, err := s.GenerateRule(ctx, rule.TemplateName, rule.Parameters)
 		if err != nil {
-			// Log error and continue to ensure valid rules are still generated
-			// In a real app we should use a logger
+			// Skip rules that fail to generate and continue processing others
 			fmt.Printf("Error generating rule %s: %v\n", rule.ID, err)
 			continue
 		}
@@ -147,35 +147,32 @@ func (s *Service) ValidateTemplate(ctx context.Context, templateContent string, 
 		return "", err
 	}
 
-	// 2. Validate PromQL/MetricQL
-	if err := s.ValidateQuery(rendered); err != nil {
-		return "", fmt.Errorf("invalid query: %w", err)
+	// 2. Validate Rule Content using vmalert config
+	if err := s.ValidateRuleContent(rendered); err != nil {
+		return "", fmt.Errorf("invalid rule content: %w", err)
 	}
 
 	return rendered, nil
 }
 
-// ValidateQuery parses the generated rule to ensure it contains valid PromQL/MetricQL expressions.
-func (s *Service) ValidateQuery(ruleYaml string) error {
-	lines := strings.Split(ruleYaml, "\n")
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "expr:") {
-			expr := strings.TrimPrefix(trimmed, "expr:")
-			expr = strings.TrimSpace(expr)
-			// Handle multi-line strings (basic support)
-			if expr == "|" || expr == ">" {
-				continue
-			}
-			// Remove quotes if present
-			if strings.HasPrefix(expr, "\"") && strings.HasSuffix(expr, "\"") {
-				expr = strings.Trim(expr, "\"")
-			}
+// ValidateRuleContent parses the generated rule to ensure it is a valid vmalert rule.
+func (s *Service) ValidateRuleContent(ruleYaml string) error {
+	var rule config.Rule
+	if err := yaml.Unmarshal([]byte(ruleYaml), &rule); err != nil {
+		return fmt.Errorf("failed to parse rule: %w", err)
+	}
 
-			if _, err := metricsql.Parse(expr); err != nil {
-				return err
-			}
+	// First, validate rule structure using vmalert
+	if err := rule.Validate(); err != nil {
+		return fmt.Errorf("rule validation failed: %w", err)
+	}
+
+	// Then, validate MetricsQL expression syntax
+	if rule.Expr != "" {
+		if _, err := metricsql.Parse(rule.Expr); err != nil {
+			return fmt.Errorf("invalid MetricsQL expression: %w", err)
 		}
 	}
+
 	return nil
 }

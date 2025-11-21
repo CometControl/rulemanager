@@ -33,24 +33,20 @@ func NewService(tp database.TemplateProvider, v validation.SchemaValidator) *Ser
 
 // GenerateRule generates a rule configuration from a template and parameters.
 func (s *Service) GenerateRule(ctx context.Context, templateName string, parameters json.RawMessage) (string, error) {
-	// 1. Get Schema
 	schemaStr, err := s.templateProvider.GetSchema(ctx, templateName)
 	if err != nil {
 		return "", err
 	}
 
-	// 2. Validate Parameters
 	if err := s.validator.Validate(schemaStr, parameters); err != nil {
 		return "", err
 	}
 
-	// 3. Get Template
 	tmplStr, err := s.templateProvider.GetTemplate(ctx, templateName)
 	if err != nil {
 		return "", err
 	}
 
-	// 4. Render Template
 	return s.renderTemplate(templateName, tmplStr, parameters)
 }
 
@@ -75,18 +71,15 @@ func (s *Service) renderTemplate(name, tmplStr string, parameters json.RawMessag
 
 // ValidateRule validates parameters against the schema and executes any defined pipelines.
 func (s *Service) ValidateRule(ctx context.Context, templateName string, parameters json.RawMessage) error {
-	// 1. Get Schema
 	schemaStr, err := s.templateProvider.GetSchema(ctx, templateName)
 	if err != nil {
 		return err
 	}
 
-	// 2. Validate Parameters against Schema
 	if err := s.validator.Validate(schemaStr, parameters); err != nil {
 		return err
 	}
 
-	// 3. Parse Schema to get Pipelines and Datasource
 	var schemaObj struct {
 		Datasource *DatasourceConfig `json:"datasource"`
 		Pipelines  []PipelineStep    `json:"pipelines"`
@@ -95,7 +88,7 @@ func (s *Service) ValidateRule(ctx context.Context, templateName string, paramet
 		return fmt.Errorf("failed to parse schema for pipelines: %w", err)
 	}
 
-	// 4. Execute Pipelines
+	// Execute any configured pipelines
 	if len(schemaObj.Pipelines) > 0 {
 		if err := s.pipelineProcessor.Execute(ctx, schemaObj.Pipelines, schemaObj.Datasource, parameters); err != nil {
 			return err
@@ -141,13 +134,11 @@ func (s *Service) GenerateVMAlertConfig(ctx context.Context, rules []*database.R
 
 // ValidateTemplate renders a template with parameters and validates the generated query.
 func (s *Service) ValidateTemplate(ctx context.Context, templateContent string, parameters json.RawMessage) (string, error) {
-	// 1. Render Template
 	rendered, err := s.renderTemplate("validate", templateContent, parameters)
 	if err != nil {
 		return "", err
 	}
 
-	// 2. Validate Rule Content using vmalert config
 	if err := s.ValidateRuleContent(rendered); err != nil {
 		return "", fmt.Errorf("invalid rule content: %w", err)
 	}

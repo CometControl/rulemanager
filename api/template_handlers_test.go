@@ -7,13 +7,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"rulemanager/internal/rules"
+	"rulemanager/internal/validation"
+
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"rulemanager/internal/rules"
-	"rulemanager/internal/validation"
 )
 
 func TestTemplateHandlers(t *testing.T) {
@@ -75,10 +76,21 @@ func TestTemplateHandlers(t *testing.T) {
 
 	// Test Validate Template
 	t.Run("ValidateTemplate", func(t *testing.T) {
-		tmplContent := `alert: {{ .name }}`
-		params := map[string]string{"name": "test"}
+		tmplContent := `alert: {{ .alertName }}
+expr: {{ .metric }} > {{ .threshold }}
+for: 5m
+labels:
+  severity: {{ .severity }}
+annotations:
+  summary: Test alert`
+		params := map[string]interface{}{
+			"alertName": "HighCPU",
+			"metric":    "cpu_usage",
+			"threshold": "80",
+			"severity":  "warning",
+		}
 		paramsJSON, _ := json.Marshal(params)
-		
+
 		payload := map[string]interface{}{
 			"templateContent": tmplContent,
 			"parameters":      json.RawMessage(paramsJSON),
@@ -92,12 +104,13 @@ func TestTemplateHandlers(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		
+
 		var resp struct {
 			Result string `json:"result"`
 		}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		assert.NoError(t, err)
-		assert.Equal(t, "alert: test", resp.Result)
+		assert.Contains(t, resp.Result, "alert: HighCPU")
+		assert.Contains(t, resp.Result, "expr: cpu_usage > 80")
 	})
 }

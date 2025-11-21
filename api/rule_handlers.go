@@ -127,21 +127,18 @@ type DeleteRuleOutput struct {
 
 // CreateRule creates a new rule.
 func (h *RuleHandlers) CreateRule(ctx context.Context, input *CreateRuleInput) (*CreateRuleOutput, error) {
-	// 1. Validate Rule (Schema + Pipelines)
+	// Validate parameters and pipelines
 	if err := h.ruleService.ValidateRule(ctx, input.Body.TemplateName, input.Body.Parameters); err != nil {
 		return nil, huma.Error400BadRequest(err.Error())
 	}
 
-	// 2. Generate the rule content (validates template syntax)
-	// Note: We are not storing the generated content yet, just validating that it CAN be generated.
-	// In a real scenario, we might want to store the generated rule or just the parameters.
-	// The design says we store the parameters and generate on demand (or cache).
+	// Validate template syntax by attempting generation
 	_, err := h.ruleService.GenerateRule(ctx, input.Body.TemplateName, input.Body.Parameters)
 	if err != nil {
 		return nil, huma.Error400BadRequest(err.Error())
 	}
 
-	// 2. Create the rule in the database
+	// Create the rule in the database
 	rule := &database.Rule{
 		ID:           primitive.NewObjectID().Hex(),
 		TemplateName: input.Body.TemplateName,
@@ -181,18 +178,18 @@ func (h *RuleHandlers) ListRules(ctx context.Context, input *ListRulesInput) (*L
 
 // UpdateRule updates an existing rule.
 func (h *RuleHandlers) UpdateRule(ctx context.Context, input *UpdateRuleInput) (*UpdateRuleOutput, error) {
-	// 1. Validate Rule (Schema + Pipelines)
+	// Validate parameters and pipelines
 	if err := h.ruleService.ValidateRule(ctx, input.Body.TemplateName, input.Body.Parameters); err != nil {
 		return nil, huma.Error400BadRequest(err.Error())
 	}
 
-	// 2. Generate/Validate Template
+	// Validate template syntax
 	_, err := h.ruleService.GenerateRule(ctx, input.Body.TemplateName, input.Body.Parameters)
 	if err != nil {
 		return nil, huma.Error400BadRequest(err.Error())
 	}
 
-	// 2. Update
+	// Update the rule
 	rule := &database.Rule{
 		TemplateName: input.Body.TemplateName,
 		Parameters:   input.Body.Parameters,

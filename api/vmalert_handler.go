@@ -29,16 +29,11 @@ type GetVMAlertConfigOutput struct {
 
 // GetVMAlertConfig generates and returns the vmalert configuration.
 func (h *RuleHandlers) GetVMAlertConfig(ctx context.Context, input *struct{}) (*GetVMAlertConfigOutput, error) {
-	// 1. List all rules
-	// In a real scenario, we might want to paginate or stream, but for now fetch all.
-	// We need a ListAllRules method in store or use a large limit.
-	// Let's assume 10000 is enough for now.
 	rules, err := h.ruleStore.ListRules(ctx, 0, 10000)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(err.Error())
 	}
 
-	// 2. Generate Config
 	configYAML, err := h.ruleService.GenerateVMAlertConfig(ctx, rules)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(err.Error())

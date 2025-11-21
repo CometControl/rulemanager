@@ -169,10 +169,7 @@ func (s *FileStore) ListRules(ctx context.Context, limit, offset int) ([]*Rule, 
 
 // --- TemplateProvider Implementation ---
 
-// We store templates as two files: name.json (schema) and name.tmpl (template content)
-// Or we can store them as a single JSON document like in Mongo.
-// Let's stick to the single JSON document structure for consistency with the data model.
-// We'll store them in `templates/name.json`.
+// Templates are stored as JSON files: templates/{name}_{type}.json
 
 type fileTemplateDoc struct {
 	ID      string `json:"id"`

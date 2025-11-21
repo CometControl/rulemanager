@@ -68,7 +68,7 @@ func (p *PipelineProcessor) Execute(ctx context.Context, schemaPipelines []Pipel
 		if step.Condition != nil {
 			val, ok := paramsMap[step.Condition.Property]
 			if !ok {
-				continue // Property not found, skip or fail? detailed design says skip if condition not met
+				continue
 			}
 			valStr, ok := val.(string)
 			if !ok || valStr != step.Condition.Equals {
@@ -105,16 +105,14 @@ func (r *ValidateMetricExistsRunner) Run(ctx context.Context, datasource *Dataso
 		return fmt.Errorf("unsupported datasource type for metric validation: %s", datasource.Type)
 	}
 
-	// 1. Extract parameters
+	// Extract parameters
 	metricNameTmpl, _ := stepParams["metric_name"].(string)
-	// labelsTmpl, _ := stepParams["labels"].(string) // Optional, currently unused
 
 	if metricNameTmpl == "" {
 		return fmt.Errorf("metric_name is required")
 	}
 
-	// 2. Render templates
-	// 2. Render templates
+	// Render templates
 	var paramsMap map[string]interface{}
 	if err := json.Unmarshal(ruleParams, &paramsMap); err != nil {
 		return fmt.Errorf("failed to unmarshal rule parameters: %w", err)
@@ -125,10 +123,7 @@ func (r *ValidateMetricExistsRunner) Run(ctx context.Context, datasource *Dataso
 		return fmt.Errorf("failed to render metric_name: %w", err)
 	}
 
-	// Labels logic is placeholder for now
-	// if labelsTmpl != "" { ... }
-
-	// 3. Construct Query
+	// Construct selector and query
 	selector := fmt.Sprintf("{__name__=%q}", metricName)
 
 	query := fmt.Sprintf("count(%s)", selector)
@@ -179,14 +174,10 @@ func (r *ValidateMetricExistsRunner) Run(ctx context.Context, datasource *Dataso
 		return fmt.Errorf("datasource query failed")
 	}
 
-	// If count > 0, result vector should not be empty and value should be > 0
+	// Metric exists if query returns results
 	if len(result.Data.Result) == 0 {
 		return fmt.Errorf("metric '%s' not found", metricName)
 	}
-
-	// We could check the value but count() returns empty if no series match?
-	// Actually count() over empty vector returns empty vector.
-	// So len(Result) == 0 means 0 count.
 
 	return nil
 }

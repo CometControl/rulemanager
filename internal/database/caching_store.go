@@ -63,8 +63,7 @@ func (c *CachingTemplateProvider) InvalidateTemplate(name string) {
 
 // CreateSchema creates a new schema and invalidates the cache.
 func (c *CachingTemplateProvider) CreateSchema(ctx context.Context, name, content string) error {
-	// We can't easily add to cache here because CreateSchema in interface might not return the content if it was modified?
-	// Actually it takes content. But let's just invalidate to be safe and simple.
+	// Invalidate cache to ensure fresh data on next read
 	c.InvalidateSchema(name)
 	return c.provider.(interface {
 		CreateSchema(ctx context.Context, name, content string) error

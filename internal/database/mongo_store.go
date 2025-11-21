@@ -132,8 +132,6 @@ type templateDoc struct {
 // GetSchema retrieves a schema by name from MongoDB.
 func (s *MongoStore) GetSchema(ctx context.Context, name string) (string, error) {
 	var doc templateDoc
-	// We assume the ID is exactly the name provided.
-	// The type filter ensures we get the schema, not the template if they share IDs (though they shouldn't).
 	err := s.templatesColl.FindOne(ctx, bson.M{"_id": name, "type": "schema"}).Decode(&doc)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -147,7 +145,6 @@ func (s *MongoStore) GetSchema(ctx context.Context, name string) (string, error)
 // GetTemplate retrieves a template by name from MongoDB.
 func (s *MongoStore) GetTemplate(ctx context.Context, name string) (string, error) {
 	var doc templateDoc
-	// We assume the ID is exactly the name provided.
 	err := s.templatesColl.FindOne(ctx, bson.M{"_id": name, "type": "template"}).Decode(&doc)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {

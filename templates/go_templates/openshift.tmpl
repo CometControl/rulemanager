@@ -1,36 +1,35 @@
 {{- $target := .target -}}
-{{- range .rules }}
-{{ if eq .rule_type "cpu" }}
+{{- $rule := .rule -}}
+{{ if eq $rule.rule_type "cpu" }}
 - alert: HighCPUUsage_{{ $target.workload }}
-  expr: sum(rate(container_cpu_usage_seconds_total{namespace="{{ $target.namespace }}", pod=~"{{ $target.workload }}-.*"}[5m])) by (pod) {{ .operator }} {{ .threshold }}
+  expr: sum(rate(container_cpu_usage_seconds_total{namespace="{{ $target.namespace }}", pod=~"{{ $target.workload }}-.*"}[5m])) by (pod) {{ $rule.operator }} {{ $rule.threshold }}
   for: 5m
   labels:
-    severity: {{ .severity }}
+    severity: {{ $rule.severity }}
     environment: {{ $target.environment }}
     namespace: {{ $target.namespace }}
-    {{- range $key, $value := .labels }}
+    {{- range $key, $value := $rule.labels }}
     {{ $key }}: {{ $value }}
     {{- end }}
   annotations:
     summary: "High CPU usage for {{ $target.workload }}"
-    {{- range $key, $value := .annotations }}
+    {{- range $key, $value := $rule.annotations }}
     {{ $key }}: {{ $value }}
     {{- end }}
-{{ else if eq .rule_type "ram" }}
+{{ else if eq $rule.rule_type "ram" }}
 - alert: HighMemoryUsage_{{ $target.workload }}
-  expr: sum(container_memory_working_set_bytes{namespace="{{ $target.namespace }}", pod=~"{{ $target.workload }}-.*"}) by (pod) {{ .operator }} {{ .threshold }}
+  expr: sum(container_memory_working_set_bytes{namespace="{{ $target.namespace }}", pod=~"{{ $target.workload }}-.*"}) by (pod) {{ $rule.operator }} {{ $rule.threshold }}
   for: 5m
   labels:
-    severity: {{ .severity }}
+    severity: {{ $rule.severity }}
     environment: {{ $target.environment }}
     namespace: {{ $target.namespace }}
-    {{- range $key, $value := .labels }}
+    {{- range $key, $value := $rule.labels }}
     {{ $key }}: {{ $value }}
     {{- end }}
   annotations:
     summary: "High Memory usage for {{ $target.workload }}"
-    {{- range $key, $value := .annotations }}
+    {{- range $key, $value := $rule.annotations }}
     {{ $key }}: {{ $value }}
     {{- end }}
 {{ end }}
-{{- end }}

@@ -82,13 +82,11 @@ func TestTemplateParameters(t *testing.T) {
 					"namespace":   "backend",
 					"workload":    "api-server",
 				},
-				"rules": []map[string]interface{}{
-					{
-						"rule_type": "cpu",
-						"severity":  "critical",
-						"operator":  ">",
-						"threshold": 0.9,
-					},
+				"rule": map[string]interface{}{
+					"rule_type": "cpu",
+					"severity":  "critical",
+					"operator":  ">",
+					"threshold": 0.9,
 				},
 			},
 			wantErr: false,
@@ -99,33 +97,22 @@ func TestTemplateParameters(t *testing.T) {
 			},
 		},
 		{
-			name: "Multiple Rules (CPU & RAM)",
+			name: "Single RAM Rule",
 			params: map[string]interface{}{
 				"target": map[string]string{
 					"environment": "prod",
 					"namespace":   "backend",
 					"workload":    "api-server",
 				},
-				"rules": []map[string]interface{}{
-					{
-						"rule_type": "cpu",
-						"severity":  "warning",
-						"operator":  ">",
-						"threshold": 0.7,
-					},
-					{
-						"rule_type": "ram",
-						"severity":  "critical",
-						"operator":  ">",
-						"threshold": 2000000000,
-					},
+				"rule": map[string]interface{}{
+					"rule_type": "ram",
+					"severity":  "critical",
+					"operator":  ">",
+					"threshold": 2000000000,
 				},
 			},
 			wantErr: false,
 			wantChecks: []string{
-				"severity: warning",
-				"> 0.7",
-				"HighCPUUsage_api-server",
 				"severity: critical",
 				"> 2e+09",
 				"HighMemoryUsage_api-server",
@@ -139,18 +126,16 @@ func TestTemplateParameters(t *testing.T) {
 					"namespace":   "backend",
 					"workload":    "api-server",
 				},
-				"rules": []map[string]interface{}{
-					{
-						"rule_type": "cpu",
-						"severity":  "critical",
-						"operator":  ">",
-						"threshold": 0.9,
-						"labels": map[string]string{
-							"team": "platform",
-						},
-						"annotations": map[string]string{
-							"runbook": "http://runbook.com/api-server",
-						},
+				"rule": map[string]interface{}{
+					"rule_type": "cpu",
+					"severity":  "critical",
+					"operator":  ">",
+					"threshold": 0.9,
+					"labels": map[string]string{
+						"team": "platform",
+					},
+					"annotations": map[string]string{
+						"runbook": "http://runbook.com/api-server",
 					},
 				},
 			},
@@ -164,13 +149,11 @@ func TestTemplateParameters(t *testing.T) {
 		{
 			name: "Missing Target",
 			params: map[string]interface{}{
-				"rules": []map[string]interface{}{
-					{
-						"rule_type": "cpu",
-						"severity":  "critical",
-						"operator":  ">",
-						"threshold": 0.9,
-					},
+				"rule": map[string]interface{}{
+					"rule_type": "cpu",
+					"severity":  "critical",
+					"operator":  ">",
+					"threshold": 0.9,
 				},
 			},
 			wantErr: true,

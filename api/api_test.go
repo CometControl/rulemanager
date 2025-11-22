@@ -8,17 +8,18 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/danielgtaylor/huma/v2/adapters/humachi"
-	"github.com/danielgtaylor/huma/v2"
-	"github.com/go-chi/chi/v5"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"rulemanager/internal/database"
 	"rulemanager/internal/rules"
 	"rulemanager/internal/validation"
+
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/adapters/humachi"
+	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
-// Mocks (reused or redefined if needed, but we can reuse the ones from rules package if exported, 
+// Mocks (reused or redefined if needed, but we can reuse the ones from rules package if exported,
 // or define simple ones here since we are testing the API layer integration with services)
 
 // We need to mock RuleStore and TemplateProvider (which is implemented by MongoStore in real app).
@@ -121,13 +122,16 @@ func TestCreateRuleEndpoint(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, http.StatusOK, w.Code)
-	
+
 	var respBody struct {
-		ID string `json:"id"`
+		IDs   []string `json:"ids"`
+		Count int      `json:"count"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &respBody)
 	assert.NoError(t, err)
-	assert.Equal(t, "test-rule-id", respBody.ID)
+	assert.Len(t, respBody.IDs, 1)
+	assert.Equal(t, "test-rule-id", respBody.IDs[0])
+	assert.Equal(t, 1, respBody.Count)
 
 	mockTP.AssertExpectations(t)
 	mockStore.AssertExpectations(t)

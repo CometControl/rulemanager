@@ -26,72 +26,69 @@
             ],
             "description": "The target entity for the rules"
         },
-        "rules": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "rule_type": {
-                        "type": "string",
-                        "enum": [
-                            "cpu",
-                            "ram"
-                        ],
-                        "description": "The type of resource to monitor"
-                    },
-                    "severity": {
-                        "type": "string",
-                        "enum": [
-                            "critical",
-                            "warning",
-                            "info"
-                        ],
-                        "description": "The severity of the alert"
-                    },
-                    "operator": {
-                        "type": "string",
-                        "enum": [
-                            ">",
-                            "<",
-                            ">=",
-                            "<=",
-                            "==",
-                            "!="
-                        ],
-                        "description": "The comparison operator"
-                    },
-                    "threshold": {
-                        "type": "number",
-                        "description": "The threshold value for the alert"
-                    },
-                    "labels": {
-                        "type": "object",
-                        "additionalProperties": {
-                            "type": "string"
-                        },
-                        "description": "Additional labels to add to the alert"
-                    },
-                    "annotations": {
-                        "type": "object",
-                        "additionalProperties": {
-                            "type": "string"
-                        },
-                        "description": "Additional annotations to add to the alert"
-                    }
+        "rule": {
+            "type": "object",
+            "properties": {
+                "rule_type": {
+                    "type": "string",
+                    "enum": [
+                        "cpu",
+                        "ram"
+                    ],
+                    "description": "The type of resource to monitor"
                 },
-                "required": [
-                    "rule_type",
-                    "severity",
-                    "operator",
-                    "threshold"
-                ]
+                "severity": {
+                    "type": "string",
+                    "enum": [
+                        "critical",
+                        "warning",
+                        "info"
+                    ],
+                    "description": "The severity of the alert"
+                },
+                "operator": {
+                    "type": "string",
+                    "enum": [
+                        ">",
+                        "<",
+                        ">=",
+                        "<=",
+                        "==",
+                        "!="
+                    ],
+                    "description": "The comparison operator"
+                },
+                "threshold": {
+                    "type": "number",
+                    "description": "The threshold value for the alert"
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "description": "Additional labels to add to the alert"
+                },
+                "annotations": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "description": "Additional annotations to add to the alert"
+                }
             },
-            "description": "List of rules to apply to the target"
+            "required": [
+                "rule_type",
+                "severity",
+                "operator",
+                "threshold"
+            ],
+            "description": "The rule to apply to the target"
         }
     },
     "required": [
         "target",
-        "rules"
+        "rule"
     ],
     "datasource": {
         "type": "prometheus",

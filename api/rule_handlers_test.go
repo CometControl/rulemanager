@@ -31,7 +31,7 @@ func TestRuleHandlers_CreateRule(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		input := &CreateRuleInput{}
 		input.Body.TemplateName = "openshift"
-		input.Body.Parameters = json.RawMessage(`{"target": {"namespace": "test"}}`)
+		input.Body.Parameters = json.RawMessage(`{"target": {"namespace": "test"}, "rule": {"rule_type": "cpu"}}`)
 
 		mockTP.On("GetSchema", ctx, "openshift").Return(schema, nil).Twice() // ValidateRule + GenerateRule
 		mockTP.On("GetTemplate", ctx, "openshift").Return(tmpl, nil).Once()
@@ -41,7 +41,9 @@ func TestRuleHandlers_CreateRule(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.NotNil(t, output)
-		assert.NotEmpty(t, output.Body.ID)
+		assert.Len(t, output.Body.IDs, 1)
+		assert.NotEmpty(t, output.Body.IDs[0])
+		assert.Equal(t, 1, output.Body.Count)
 		mockTP.AssertExpectations(t)
 		mockStore.AssertExpectations(t)
 	})
@@ -90,6 +92,36 @@ func TestRuleHandlers_CreateRule(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, output)
+		mockTP.AssertExpectations(t)
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("BatchCreation", func(t *testing.T) {
+		input := &CreateRuleInput{}
+		input.Body.TemplateName = "openshift"
+		input.Body.Parameters = json.RawMessage(`{
+			"target": {"environment": "prod", "namespace": "test", "workload": "my-app"},
+			"rules": [
+				{"rule_type": "cpu", "severity": "warning", "operator": ">", "threshold": 0.7},
+				{"rule_type": "cpu", "severity": "critical", "operator": ">", "threshold": 0.9},
+				{"rule_type": "ram", "severity": "critical", "operator": ">", "threshold": 2000000000}
+			]
+		}`)
+
+		// Each rule needs validation + generation, and store creation
+		mockTP.On("GetSchema", ctx, "openshift").Return(schema, nil).Times(6)                       // 3 rules * 2 (ValidateRule + GenerateRule)
+		mockTP.On("GetTemplate", ctx, "openshift").Return(tmpl, nil).Times(3)                       // 3 rules
+		mockStore.On("CreateRule", ctx, mock.AnythingOfType("*database.Rule")).Return(nil).Times(3) // 3 rules
+
+		output, err := handlers.CreateRule(ctx, input)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, output)
+		assert.Len(t, output.Body.IDs, 3)
+		assert.Equal(t, 3, output.Body.Count)
+		for _, id := range output.Body.IDs {
+			assert.NotEmpty(t, id)
+		}
 		mockTP.AssertExpectations(t)
 		mockStore.AssertExpectations(t)
 	})
@@ -191,11 +223,18 @@ func TestRuleHandlers_UpdateRule(t *testing.T) {
 	schema := `{"type": "object", "properties": {"target": {"type": "object"}}}`
 	tmpl := `alert: test`
 
-	t.Run("Success", func(t *testing.T) {
+	t.Run("Success_FullUpdate", func(t *testing.T) {
 		input := &UpdateRuleInput{ID: "123"}
 		input.Body.TemplateName = "openshift"
 		input.Body.Parameters = json.RawMessage(`{"target": {"namespace": "test"}}`)
 
+		existingRule := &database.Rule{
+			ID:           "123",
+			TemplateName: "openshift",
+			Parameters:   json.RawMessage(`{"target": {"namespace": "old"}}`),
+		}
+
+		mockStore.On("GetRule", ctx, "123").Return(existingRule, nil).Once()
 		mockTP.On("GetSchema", ctx, "openshift").Return(schema, nil).Twice() // ValidateRule + GenerateRule
 		mockTP.On("GetTemplate", ctx, "openshift").Return(tmpl, nil).Once()
 		mockStore.On("UpdateRule", ctx, "123", mock.AnythingOfType("*database.Rule")).Return(nil).Once()
@@ -209,10 +248,56 @@ func TestRuleHandlers_UpdateRule(t *testing.T) {
 		mockStore.AssertExpectations(t)
 	})
 
+	t.Run("Success_PartialUpdate", func(t *testing.T) {
+		input := &UpdateRuleInput{ID: "123"}
+		// No TemplateName provided, should use existing
+		// Partial update: only updating namespace, keeping environment
+		input.Body.Parameters = json.RawMessage(`{"target": {"namespace": "new-ns"}}`)
+
+		existingRule := &database.Rule{
+			ID:           "123",
+			TemplateName: "openshift",
+			Parameters:   json.RawMessage(`{"target": {"environment": "prod", "namespace": "old-ns"}}`),
+		}
+
+		mockStore.On("GetRule", ctx, "123").Return(existingRule, nil).Once()
+
+		// Expect merged parameters: environment=prod (kept), namespace=new-ns (updated)
+		// We can't easily match the exact JSON string in mock expectation due to key ordering,
+		// but we can verify the behavior by what is passed to ValidateRule
+		mockTP.On("GetSchema", ctx, "openshift").Return(schema, nil).Twice()
+		mockTP.On("GetTemplate", ctx, "openshift").Return(tmpl, nil).Once()
+
+		// Verify UpdateRule is called with merged parameters
+		mockStore.On("UpdateRule", ctx, "123", mock.MatchedBy(func(r *database.Rule) bool {
+			var params map[string]interface{}
+			json.Unmarshal(r.Parameters, &params)
+			target := params["target"].(map[string]interface{})
+			return r.TemplateName == "openshift" &&
+				target["environment"] == "prod" &&
+				target["namespace"] == "new-ns"
+		})).Return(nil).Once()
+
+		output, err := handlers.UpdateRule(ctx, input)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, output)
+		mockTP.AssertExpectations(t)
+		mockStore.AssertExpectations(t)
+	})
+
 	t.Run("ValidationError", func(t *testing.T) {
 		input := &UpdateRuleInput{ID: "123"}
 		input.Body.TemplateName = "openshift"
 		input.Body.Parameters = json.RawMessage(`{"invalid": "data"}`)
+
+		existingRule := &database.Rule{
+			ID:           "123",
+			TemplateName: "openshift",
+			Parameters:   json.RawMessage(`{}`),
+		}
+
+		mockStore.On("GetRule", ctx, "123").Return(existingRule, nil).Once()
 
 		badSchema := `{"type": "object", "properties": {"required_field": {"type": "string"}}, "required": ["required_field"]}`
 		mockTP.On("GetSchema", ctx, "openshift").Return(badSchema, nil).Once()
@@ -229,6 +314,13 @@ func TestRuleHandlers_UpdateRule(t *testing.T) {
 		input.Body.TemplateName = "openshift"
 		input.Body.Parameters = json.RawMessage(`{"target": {"namespace": "test"}}`)
 
+		existingRule := &database.Rule{
+			ID:           "123",
+			TemplateName: "openshift",
+			Parameters:   json.RawMessage(`{}`),
+		}
+
+		mockStore.On("GetRule", ctx, "123").Return(existingRule, nil).Once()
 		mockTP.On("GetSchema", ctx, "openshift").Return(schema, nil).Twice() // ValidateRule + GenerateRule
 		mockTP.On("GetTemplate", ctx, "openshift").Return(tmpl, nil).Once()
 		mockStore.On("UpdateRule", ctx, "123", mock.AnythingOfType("*database.Rule")).Return(errors.New("database error")).Once()

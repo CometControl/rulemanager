@@ -13,6 +13,7 @@ require (
 )
 
 require (
+	dario.cat/mergo v1.0.2 // indirect
 	github.com/VictoriaMetrics/VictoriaLogs v1.36.2-0.20251008164716-21c0fb3de84d // indirect
 	github.com/VictoriaMetrics/VictoriaMetrics v1.130.0 // indirect
 	github.com/VictoriaMetrics/easyproto v0.1.4 // indirect

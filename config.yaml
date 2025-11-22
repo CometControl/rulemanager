@@ -6,7 +6,7 @@ database:
   database_name: "rulemanager"
 
 template_storage:
-  type: "file"
+  type: "mongodb"
   file:
     path: "./data"
   mongodb:

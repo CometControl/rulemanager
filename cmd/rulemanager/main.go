@@ -40,14 +40,37 @@ func main() {
 		templateProvider = database.NewCachingTemplateProvider(fileStore)
 	} else {
 		fmt.Println("Using MongoDB Store")
-		mongoStore, err := database.NewMongoStore(ctx, cfg.Database.ConnectionString, cfg.Database.DatabaseName)
+
+		// Initialize Rule Store
+		ruleMongoStore, err := database.NewMongoStore(ctx, cfg.Database.ConnectionString, cfg.Database.DatabaseName)
 		if err != nil {
-			log.Fatalf("Failed to connect to MongoDB: %v", err)
+			log.Fatalf("Failed to connect to Rules MongoDB: %v", err)
 		}
-		defer mongoStore.Close(ctx)
-		ruleStore = mongoStore
-		// Wrap with caching
-		templateProvider = database.NewCachingTemplateProvider(mongoStore)
+		defer ruleMongoStore.Close(ctx)
+		ruleStore = ruleMongoStore
+
+		// Initialize Template Provider
+		tmplConnStr := cfg.TemplateStorage.MongoDB.ConnectionString
+		tmplDBName := cfg.TemplateStorage.MongoDB.DatabaseName
+
+		if tmplConnStr == "" {
+			tmplConnStr = cfg.Database.ConnectionString
+		}
+		if tmplDBName == "" {
+			tmplDBName = cfg.Database.DatabaseName
+		}
+
+		if tmplConnStr == cfg.Database.ConnectionString && tmplDBName == cfg.Database.DatabaseName {
+			templateProvider = database.NewCachingTemplateProvider(ruleMongoStore)
+		} else {
+			fmt.Printf("Using separate MongoDB for Templates: %s\n", tmplDBName)
+			tmplMongoStore, err := database.NewMongoStore(ctx, tmplConnStr, tmplDBName)
+			if err != nil {
+				log.Fatalf("Failed to connect to Templates MongoDB: %v", err)
+			}
+			defer tmplMongoStore.Close(ctx)
+			templateProvider = database.NewCachingTemplateProvider(tmplMongoStore)
+		}
 	}
 
 	// 3. Initialize Services

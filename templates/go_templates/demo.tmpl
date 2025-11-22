@@ -1,0 +1,13 @@
+groups:
+- name: {{ .target.service }}-alerts
+  rules:
+  - alert: {{ .target.service | title }}High{{ .rule.metric | title }}
+    expr: {{ .rule.metric }} > {{ .rule.threshold }}
+    for: {{ .rule.duration }}
+    labels:
+      severity: warning
+      service: {{ .target.service }}
+      environment: {{ .target.environment }}
+    annotations:
+      summary: High {{ .rule.metric }} on {{ .target.service }}
+      description: {{ .rule.metric }} is above {{ .rule.threshold }} for {{ .rule.duration }}

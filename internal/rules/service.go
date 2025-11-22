@@ -51,7 +51,10 @@ func (s *Service) GenerateRule(ctx context.Context, templateName string, paramet
 }
 
 func (s *Service) renderTemplate(name, tmplStr string, parameters json.RawMessage) (string, error) {
-	tmpl, err := template.New(name).Parse(tmplStr)
+	funcMap := template.FuncMap{
+		"title": strings.Title,
+	}
+	tmpl, err := template.New(name).Funcs(funcMap).Parse(tmplStr)
 	if err != nil {
 		return "", err
 	}

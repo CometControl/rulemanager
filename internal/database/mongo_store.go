@@ -132,7 +132,8 @@ type templateDoc struct {
 // GetSchema retrieves a schema by name from MongoDB.
 func (s *MongoStore) GetSchema(ctx context.Context, name string) (string, error) {
 	var doc templateDoc
-	err := s.templatesColl.FindOne(ctx, bson.M{"_id": name, "type": "schema"}).Decode(&doc)
+	id := "schema:" + name
+	err := s.templatesColl.FindOne(ctx, bson.M{"_id": id}).Decode(&doc)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return "", errors.New("schema not found")
@@ -145,7 +146,8 @@ func (s *MongoStore) GetSchema(ctx context.Context, name string) (string, error)
 // GetTemplate retrieves a template by name from MongoDB.
 func (s *MongoStore) GetTemplate(ctx context.Context, name string) (string, error) {
 	var doc templateDoc
-	err := s.templatesColl.FindOne(ctx, bson.M{"_id": name, "type": "template"}).Decode(&doc)
+	id := "template:" + name
+	err := s.templatesColl.FindOne(ctx, bson.M{"_id": id}).Decode(&doc)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return "", errors.New("template not found")
@@ -157,10 +159,16 @@ func (s *MongoStore) GetTemplate(ctx context.Context, name string) (string, erro
 
 // CreateSchema saves a new schema to MongoDB.
 func (s *MongoStore) CreateSchema(ctx context.Context, name, content string) error {
+	id := "schema:" + name
 	_, err := s.templatesColl.UpdateOne(
 		ctx,
-		bson.M{"_id": name, "type": "schema"},
-		bson.M{"$set": bson.M{"content": content}},
+		bson.M{"_id": id},
+		bson.M{
+			"$set": bson.M{
+				"type":    "schema",
+				"content": content,
+			},
+		},
 		options.Update().SetUpsert(true),
 	)
 	return err
@@ -168,10 +176,16 @@ func (s *MongoStore) CreateSchema(ctx context.Context, name, content string) err
 
 // CreateTemplate saves a new template to MongoDB.
 func (s *MongoStore) CreateTemplate(ctx context.Context, name, content string) error {
+	id := "template:" + name
 	_, err := s.templatesColl.UpdateOne(
 		ctx,
-		bson.M{"_id": name, "type": "template"},
-		bson.M{"$set": bson.M{"content": content}},
+		bson.M{"_id": id},
+		bson.M{
+			"$set": bson.M{
+				"type":    "template",
+				"content": content,
+			},
+		},
 		options.Update().SetUpsert(true),
 	)
 	return err
@@ -179,12 +193,14 @@ func (s *MongoStore) CreateTemplate(ctx context.Context, name, content string) e
 
 // DeleteSchema removes a schema from MongoDB.
 func (s *MongoStore) DeleteSchema(ctx context.Context, name string) error {
-	_, err := s.templatesColl.DeleteOne(ctx, bson.M{"_id": name, "type": "schema"})
+	id := "schema:" + name
+	_, err := s.templatesColl.DeleteOne(ctx, bson.M{"_id": id})
 	return err
 }
 
 // DeleteTemplate removes a template from MongoDB.
 func (s *MongoStore) DeleteTemplate(ctx context.Context, name string) error {
-	_, err := s.templatesColl.DeleteOne(ctx, bson.M{"_id": name, "type": "template"})
+	id := "template:" + name
+	_, err := s.templatesColl.DeleteOne(ctx, bson.M{"_id": id})
 	return err
 }

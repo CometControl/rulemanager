@@ -5,10 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"rulemanager/internal/database"
 	"rulemanager/internal/validation"
 	"strings"
 	"text/template"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/config"
 	"github.com/VictoriaMetrics/metricsql"
@@ -52,20 +56,20 @@ func (s *Service) GenerateRule(ctx context.Context, templateName string, paramet
 
 func (s *Service) renderTemplate(name, tmplStr string, parameters json.RawMessage) (string, error) {
 	funcMap := template.FuncMap{
-		"title": strings.Title,
+		"title": cases.Title(language.English).String,
 	}
 	tmpl, err := template.New(name).Funcs(funcMap).Parse(tmplStr)
 	if err != nil {
 		return "", err
 	}
 
-	var paramMap map[string]interface{}
-	if err := json.Unmarshal(parameters, &paramMap); err != nil {
+	var data interface{}
+	if err := json.Unmarshal(parameters, &data); err != nil {
 		return "", err
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, paramMap); err != nil {
+	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", err
 	}
 
@@ -110,7 +114,7 @@ func (s *Service) GenerateVMAlertConfig(ctx context.Context, rules []*database.R
 		ruleContent, err := s.GenerateRule(ctx, rule.TemplateName, rule.Parameters)
 		if err != nil {
 			// Skip rules that fail to generate and continue processing others
-			fmt.Printf("Error generating rule %s: %v\n", rule.ID, err)
+			slog.Warn("Failed to generate rule", "id", rule.ID, "error", err)
 			continue
 		}
 		groups[rule.TemplateName] = append(groups[rule.TemplateName], ruleContent)

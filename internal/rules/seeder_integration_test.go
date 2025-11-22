@@ -26,7 +26,11 @@ func cleanDB(t *testing.T) {
 
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(testConnectionString))
 	require.NoError(t, err)
-	defer client.Disconnect(ctx)
+	defer func() {
+		if err := client.Disconnect(ctx); err != nil {
+			t.Logf("Failed to disconnect: %v", err)
+		}
+	}()
 
 	err = client.Database(testDBName).Drop(ctx)
 	require.NoError(t, err)

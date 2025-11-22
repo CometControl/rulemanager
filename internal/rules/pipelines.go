@@ -13,16 +13,25 @@ import (
 
 // PipelineStep defines a single step in the rule creation pipeline.
 type PipelineStep struct {
-	Name       string                 `json:"name"`
-	Type       string                 `json:"type"`
-	Condition  *PipelineCondition     `json:"condition,omitempty"`
-	Parameters map[string]interface{} `json:"parameters"`
+	Name       string             `json:"name"`
+	Type       string             `json:"type"`
+	Condition  *PipelineCondition `json:"condition,omitempty"`
+	Parameters json.RawMessage    `json:"parameters"`
 }
 
 // PipelineCondition defines a condition for executing a pipeline step.
+// Supports multiple value types for flexible comparisons.
 type PipelineCondition struct {
-	Property string `json:"property"`
-	Equals   string `json:"equals"`
+	Property    string   `json:"property"`
+	StringValue *string  `json:"string_value,omitempty"`
+	BoolValue   *bool    `json:"bool_value,omitempty"`
+	NumberValue *float64 `json:"number_value,omitempty"`
+}
+
+// ValidateMetricExistsParams defines parameters for the validate_metric_exists pipeline step.
+type ValidateMetricExistsParams struct {
+	MetricName string            `json:"metric_name"`
+	Labels     map[string]string `json:"labels,omitempty"`
 }
 
 // DatasourceConfig defines the connection details for a datasource.
@@ -33,7 +42,7 @@ type DatasourceConfig struct {
 
 // StepRunner defines the interface for a pipeline step runner.
 type StepRunner interface {
-	Run(ctx context.Context, datasource *DatasourceConfig, ruleParams json.RawMessage, stepParams map[string]interface{}) error
+	Run(ctx context.Context, datasource *DatasourceConfig, ruleParams json.RawMessage, stepParams json.RawMessage) error
 }
 
 // PipelineProcessor manages the execution of pipeline steps.
@@ -58,21 +67,11 @@ func (p *PipelineProcessor) RegisterRunner(name string, runner StepRunner) {
 
 // Execute runs a sequence of pipeline steps.
 func (p *PipelineProcessor) Execute(ctx context.Context, schemaPipelines []PipelineStep, datasource *DatasourceConfig, ruleParams json.RawMessage) error {
-	var paramsMap map[string]interface{}
-	if err := json.Unmarshal(ruleParams, &paramsMap); err != nil {
-		return fmt.Errorf("failed to unmarshal rule parameters: %w", err)
-	}
-
 	for _, step := range schemaPipelines {
 		// Check condition
 		if step.Condition != nil {
-			val, ok := paramsMap[step.Condition.Property]
-			if !ok {
+			if !p.evaluateCondition(step.Condition, ruleParams) {
 				continue
-			}
-			valStr, ok := val.(string)
-			if !ok || valStr != step.Condition.Equals {
-				continue // Condition not met
 			}
 		}
 
@@ -90,13 +89,52 @@ func (p *PipelineProcessor) Execute(ctx context.Context, schemaPipelines []Pipel
 	return nil
 }
 
+// evaluateCondition checks if a pipeline condition is met.
+func (p *PipelineProcessor) evaluateCondition(condition *PipelineCondition, ruleParams json.RawMessage) bool {
+	var params map[string]interface{}
+	if err := json.Unmarshal(ruleParams, &params); err != nil {
+		return false
+	}
+
+	val, ok := params[condition.Property]
+	if !ok {
+		return false
+	}
+
+	// Check string value
+	if condition.StringValue != nil {
+		if strVal, ok := val.(string); ok {
+			return strVal == *condition.StringValue
+		}
+		return false
+	}
+
+	// Check boolean value
+	if condition.BoolValue != nil {
+		if boolVal, ok := val.(bool); ok {
+			return boolVal == *condition.BoolValue
+		}
+		return false
+	}
+
+	// Check number value
+	if condition.NumberValue != nil {
+		if numVal, ok := val.(float64); ok {
+			return numVal == *condition.NumberValue
+		}
+		return false
+	}
+
+	return false
+}
+
 // ValidateMetricExistsRunner checks if a metric exists in the datasource.
 type ValidateMetricExistsRunner struct {
 	Client *http.Client
 }
 
 // Run executes the metric validation step.
-func (r *ValidateMetricExistsRunner) Run(ctx context.Context, datasource *DatasourceConfig, ruleParams json.RawMessage, stepParams map[string]interface{}) error {
+func (r *ValidateMetricExistsRunner) Run(ctx context.Context, datasource *DatasourceConfig, ruleParams json.RawMessage, stepParams json.RawMessage) error {
 	if datasource == nil {
 		return fmt.Errorf("datasource configuration is required for metric validation")
 	}
@@ -105,20 +143,23 @@ func (r *ValidateMetricExistsRunner) Run(ctx context.Context, datasource *Dataso
 		return fmt.Errorf("unsupported datasource type for metric validation: %s", datasource.Type)
 	}
 
-	// Extract parameters
-	metricNameTmpl, _ := stepParams["metric_name"].(string)
+	// Parse step parameters into typed struct
+	var params ValidateMetricExistsParams
+	if err := json.Unmarshal(stepParams, &params); err != nil {
+		return fmt.Errorf("invalid step parameters: %w", err)
+	}
 
-	if metricNameTmpl == "" {
+	if params.MetricName == "" {
 		return fmt.Errorf("metric_name is required")
 	}
 
-	// Render templates
-	var paramsMap map[string]interface{}
-	if err := json.Unmarshal(ruleParams, &paramsMap); err != nil {
+	// Render template with rule parameters
+	var ruleData interface{}
+	if err := json.Unmarshal(ruleParams, &ruleData); err != nil {
 		return fmt.Errorf("failed to unmarshal rule parameters: %w", err)
 	}
 
-	metricName, err := renderString(metricNameTmpl, paramsMap)
+	metricName, err := renderString(params.MetricName, ruleData)
 	if err != nil {
 		return fmt.Errorf("failed to render metric_name: %w", err)
 	}

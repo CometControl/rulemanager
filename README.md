@@ -219,10 +219,19 @@ curl -X POST http://localhost:8080/api/v1/rules \
   -d '{
     "templateName": "openshift",
     "parameters": {
-      "environment": "production",
-      "namespace": "payment-service",
-      "workload": "payment-api",
-      "rule_type": "cpu"
+      "target": {
+        "environment": "production",
+        "namespace": "payment-service",
+        "workload": "payment-api"
+      },
+      "rules": [
+        {
+          "rule_type": "cpu",
+          "severity": "critical",
+          "operator": ">",
+          "threshold": 0.9
+        }
+      ]
     }
   }'
 ```

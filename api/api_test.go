@@ -97,12 +97,17 @@ func TestCreateRuleEndpoint(t *testing.T) {
 
 	// Test Data
 	templateName := "test-template"
-	schema := `{"type": "object", "properties": {"foo": {"type": "string"}}}`
-	tmpl := `alert: {{.foo}}`
+	schema := `{"type": "object", "properties": {"target": {"type": "object"}, "rule": {"type": "object", "properties": {"foo": {"type": "string"}}}}}`
+	tmpl := `alert: {{.rule.foo}}`
 	payload := map[string]interface{}{
 		"templateName": templateName,
-		"parameters": map[string]string{
-			"foo": "bar",
+		"parameters": map[string]interface{}{
+			"target": map[string]string{
+				"namespace": "test",
+			},
+			"rules": []map[string]string{
+				{"foo": "bar"},
+			},
 		},
 	}
 	body, _ := json.Marshal(payload)

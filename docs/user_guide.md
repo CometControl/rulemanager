@@ -42,88 +42,13 @@ Once the user fills out the form, you can create one or more rules in a single r
     -   **Body**: `{ "templateName": "...", "parameters": { ... } }`
     -   **Usage**: Call this endpoint before submitting the final rule to check for validation errors (e.g., missing fields, invalid values, or metrics that don't exist in the datasource).
     
--   **Create Single Rule**: `POST /api/v1/rules`
-    -   **Body**: `{ "templateName": "...", "parameters": {"target": {...}, "rule": {...}} }`
-    -   **Response**: `{"ids": ["rule-id"], "count": 1}` - Returns an array of created rule IDs.
-    
--   **Create Multiple Rules (Batch)**: `POST /api/v1/rules`
+-   **Create Rules**: `POST /api/v1/rules`
     -   **Body**: `{ "templateName": "...", "parameters": {"target": {...}, "rules": [{...}, {...}, ...]} }`
-    -   **Usage**: Create multiple alert rules for the same target entity in one request. Specify the target once, and provide an array of rules.
-    -   **Response**: `{"ids": ["id1", "id2", "id3"], "count": 3}` - Returns all created rule IDs.
-    -   **Note**: Each rule in the array will be created as a separate file, allowing individual management.
+    -   **Usage**: Create one or more alert rules for the same target entity in one request. Specify the target once, and provide an array of rules. For a single rule, send an array with one element.
+    -   **Response**: `{"ids": ["id1", "id2", ...], "count": N}` - Returns an array of created rule IDs.
+    -   **Note**: Each rule in the array will be created as a separate entry, allowing individual management.
 
-**Example - Batch Creation:**
-```json
-{
-  "templateName": "openshift",
-  "parameters": {
-    "target": {
-      "environment": "production",
-      "namespace": "payment-service",
-      "workload": "payment-api"
-    },
-    "rules": [
-      {"rule_type": "cpu", "severity": "warning", "operator": ">", "threshold": 0.7},
-      {"rule_type": "cpu", "severity": "critical", "operator": ">", "threshold": 0.9},
-      {"rule_type": "ram", "severity": "critical", "operator": ">", "threshold": 2000000000}
-    ]
-  }
-}
-# Rule Manager User Guide
-
-## Introduction
-
-The **Rule Manager** is a service designed to simplify the creation and management of alerting rules for monitoring systems like Prometheus and VictoriaMetrics. Instead of writing complex PromQL queries manually, you can use pre-defined **Templates** to generate consistent and error-free rules.
-
-This service provides a REST API that allows you to:
-- Create, list, update, and delete alerting rules.
-- Validate rule parameters against defined schemas.
-- Generate rule files compatible with `vmalert`.
-
-## Getting Started
-
-### API Documentation
-
-The Rule Manager comes with built-in interactive API documentation (Swagger UI).
-
-To access it:
-1.  Start the Rule Manager service.
-2.  Open your browser and navigate to: `http://localhost:8080/docs` (or the appropriate host if deployed remotely).
-
-This interface allows you to explore all available endpoints, see request/response schemas, and even try out API calls directly from your browser.
-
-## API Guide for UI Developers
-
-If you are building a user interface (UI) for the Rule Manager, here is a guide to the key workflows.
-
-### 1. Fetching Templates
-
-To allow users to create rules, you first need to know what templates are available and what fields they require.
-
--   **List Templates**: Currently, templates are managed via the backend configuration. You can fetch the schema for a specific template to build a form.
--   **Get Template Schema**: `GET /api/v1/templates/schemas/{templateName}`
-    -   **Response**: A JSON Schema object.
-    -   **Usage**: Use this schema to dynamically generate a form for the user. Libraries like `react-jsonschema-form` can automatically render forms based on this response.
-
-### 2. Creating and Validating Rules
-
-Once the user fills out the form, you can create one or more rules in a single request.
-
--   **Validate (Dry-Run)**: `POST /api/v1/templates/validate`
-    -   **Body**: `{ "templateName": "...", "parameters": { ... } }`
-    -   **Usage**: Call this endpoint before submitting the final rule to check for validation errors (e.g., missing fields, invalid values, or metrics that don't exist in the datasource).
-    
--   **Create Single Rule**: `POST /api/v1/rules`
-    -   **Body**: `{ "templateName": "...", "parameters": {"target": {...}, "rule": {...}} }`
-    -   **Response**: `{"ids": ["rule-id"], "count": 1}` - Returns an array of created rule IDs.
-    
--   **Create Multiple Rules (Batch)**: `POST /api/v1/rules`
-    -   **Body**: `{ "templateName": "...", "parameters": {"target": {...}, "rules": [{...}, {...}, ...]} }`
-    -   **Usage**: Create multiple alert rules for the same target entity in one request. Specify the target once, and provide an array of rules.
-    -   **Response**: `{"ids": ["id1", "id2", "id3"], "count": 3}` - Returns all created rule IDs.
-    -   **Note**: Each rule in the array will be created as a separate file, allowing individual management.
-
-**Example - Batch Creation:**
+**Example:**
 ```json
 {
   "templateName": "openshift",
@@ -141,7 +66,7 @@ Once the user fills out the form, you can create one or more rules in a single r
   }
 }
 ```
-This creates 3 separate rule files, each independently manageable.
+This creates 3 separate rule entries, each independently manageable.
 
 ### 3. Managing Rules
 

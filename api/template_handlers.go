@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"rulemanager/internal/database"
 	"rulemanager/internal/rules"
@@ -136,36 +137,45 @@ type ValidateTemplateOutput struct {
 
 // CreateSchema creates or updates a schema.
 func (h *TemplateHandlers) CreateSchema(ctx context.Context, input *CreateSchemaInput) (*struct{}, error) {
-	// Parse content to check/set $schema
-	var schemaMap map[string]interface{}
-	if err := json.Unmarshal(input.Body.Content, &schemaMap); err != nil {
+	const supportedSchema = "http://json-schema.org/draft-07/schema"
+
+	// First parse to check if it's valid JSON
+	var rawCheck map[string]interface{}
+	if err := json.Unmarshal(input.Body.Content, &rawCheck); err != nil {
+		slog.Warn("CreateSchema: Invalid JSON content", "error", err)
 		return nil, huma.Error400BadRequest("Invalid JSON content: " + err.Error())
 	}
 
-	const supportedSchema = "http://json-schema.org/draft-07/schema"
-
-	if val, ok := schemaMap["$schema"]; ok {
-		version, ok := val.(string)
-		if !ok {
-			return nil, huma.Error400BadRequest("$schema must be a string")
-		}
-		if version != supportedSchema {
-			return nil, huma.Error400BadRequest("Unsupported schema version. Only " + supportedSchema + " is supported.")
-		}
-	} else {
-		// Default to supported schema
-		schemaMap["$schema"] = supportedSchema
+	// Define struct to validate/set $schema field
+	type JSONSchema struct {
+		Schema string `json:"$schema"`
 	}
 
-	// Re-marshal to ensure we store the updated version
-	updatedContent, err := json.MarshalIndent(schemaMap, "", "  ")
-	if err != nil {
-		return nil, huma.Error500InternalServerError("Failed to process schema: " + err.Error())
+	var schema JSONSchema
+	_ = json.Unmarshal(input.Body.Content, &schema) // Ignore error, we'll set default if missing
+
+	if schema.Schema != "" && schema.Schema != supportedSchema {
+		slog.Warn("CreateSchema: Unsupported schema version", "version", schema.Schema)
+		return nil, huma.Error400BadRequest("Unsupported schema version. Only " + supportedSchema + " is supported.")
 	}
 
-	if err := h.store.CreateSchema(ctx, input.Body.Name, string(updatedContent)); err != nil {
+	// If $schema is missing or valid, ensure it's set to the supported version
+	if schema.Schema == "" {
+		rawCheck["$schema"] = supportedSchema
+		// Re-marshal to ensure we store the updated version
+		updatedContent, err := json.MarshalIndent(rawCheck, "", "  ")
+		if err != nil {
+			slog.Error("CreateSchema: Failed to process schema", "error", err)
+			return nil, huma.Error500InternalServerError("Failed to process schema: " + err.Error())
+		}
+		input.Body.Content = updatedContent
+	}
+
+	if err := h.store.CreateSchema(ctx, input.Body.Name, string(input.Body.Content)); err != nil {
+		slog.Error("CreateSchema: Failed to store schema", "name", input.Body.Name, "error", err)
 		return nil, huma.Error500InternalServerError(err.Error())
 	}
+	slog.Info("CreateSchema: Successfully created schema", "name", input.Body.Name)
 	return nil, nil
 }
 
@@ -173,6 +183,7 @@ func (h *TemplateHandlers) CreateSchema(ctx context.Context, input *CreateSchema
 func (h *TemplateHandlers) GetSchema(ctx context.Context, input *GetTemplateInput) (*GetSchemaOutput, error) {
 	content, err := h.store.GetSchema(ctx, input.Name)
 	if err != nil {
+		slog.Warn("GetSchema: Schema not found", "name", input.Name, "error", err)
 		return nil, huma.Error404NotFound(err.Error())
 	}
 	return &GetSchemaOutput{Body: struct {
@@ -183,6 +194,7 @@ func (h *TemplateHandlers) GetSchema(ctx context.Context, input *GetTemplateInpu
 // DeleteSchema deletes a schema by name.
 func (h *TemplateHandlers) DeleteSchema(ctx context.Context, input *GetTemplateInput) (*struct{}, error) {
 	if err := h.store.DeleteSchema(ctx, input.Name); err != nil {
+		slog.Error("DeleteSchema: Failed to delete schema", "name", input.Name, "error", err)
 		return nil, huma.Error500InternalServerError(err.Error())
 	}
 	return nil, nil
@@ -192,12 +204,15 @@ func (h *TemplateHandlers) DeleteSchema(ctx context.Context, input *GetTemplateI
 func (h *TemplateHandlers) CreateTemplate(ctx context.Context, input *CreateTemplateInput) (*struct{}, error) {
 	// Validate Go template syntax (PromQL validation requires parameters, use /validate endpoint for that)
 	if _, err := template.New("check").Parse(input.Body.Content); err != nil {
+		slog.Warn("CreateTemplate: Invalid Go template", "error", err)
 		return nil, huma.Error400BadRequest("Invalid Go template: " + err.Error())
 	}
 
 	if err := h.store.CreateTemplate(ctx, input.Body.Name, input.Body.Content); err != nil {
+		slog.Error("CreateTemplate: Failed to store template", "name", input.Body.Name, "error", err)
 		return nil, huma.Error500InternalServerError(err.Error())
 	}
+	slog.Info("CreateTemplate: Successfully created template", "name", input.Body.Name)
 	return nil, nil
 }
 
@@ -205,6 +220,7 @@ func (h *TemplateHandlers) CreateTemplate(ctx context.Context, input *CreateTemp
 func (h *TemplateHandlers) GetTemplate(ctx context.Context, input *GetTemplateInput) (*GetTemplateOutput, error) {
 	content, err := h.store.GetTemplate(ctx, input.Name)
 	if err != nil {
+		slog.Warn("GetTemplate: Template not found", "name", input.Name, "error", err)
 		return nil, huma.Error404NotFound(err.Error())
 	}
 	return &GetTemplateOutput{Body: struct {
@@ -215,6 +231,7 @@ func (h *TemplateHandlers) GetTemplate(ctx context.Context, input *GetTemplateIn
 // DeleteTemplate deletes a Go template by name.
 func (h *TemplateHandlers) DeleteTemplate(ctx context.Context, input *GetTemplateInput) (*struct{}, error) {
 	if err := h.store.DeleteTemplate(ctx, input.Name); err != nil {
+		slog.Error("DeleteTemplate: Failed to delete template", "name", input.Name, "error", err)
 		return nil, huma.Error500InternalServerError(err.Error())
 	}
 	return nil, nil
@@ -224,6 +241,7 @@ func (h *TemplateHandlers) DeleteTemplate(ctx context.Context, input *GetTemplat
 func (h *TemplateHandlers) ValidateTemplate(ctx context.Context, input *ValidateTemplateInput) (*ValidateTemplateOutput, error) {
 	result, err := h.ruleService.ValidateTemplate(ctx, input.Body.TemplateContent, input.Body.Parameters)
 	if err != nil {
+		slog.Warn("ValidateTemplate: Validation failed", "error", err)
 		return nil, huma.Error400BadRequest(err.Error())
 	}
 	return &ValidateTemplateOutput{Body: struct {

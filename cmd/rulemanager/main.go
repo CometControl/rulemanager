@@ -4,47 +4,54 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
+	"os"
 	"rulemanager/api"
 	"rulemanager/config"
 	"rulemanager/internal/database"
+	"rulemanager/internal/logger"
 	"rulemanager/internal/rules"
 	"rulemanager/internal/validation"
 )
 
 func main() {
-	fmt.Println("Rule Manager starting...")
-
 	// 1. Load Configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// 2. Initialize Database/Store
+	// 2. Initialize Logger
+	logger.Setup(cfg.Logging)
+	slog.Info("Rule Manager starting...")
+
+	// 3. Initialize Database/Store
 	ctx := context.Background()
 	var ruleStore database.RuleStore
 	var templateProvider database.TemplateProvider
 
 	if cfg.TemplateStorage.Type == "file" {
-		fmt.Println("Using File Store (Local Mode)")
+		slog.Info("Using File Store (Local Mode)")
 		path := cfg.TemplateStorage.File.Path
 		if path == "" {
 			path = "./data" // Default path
 		}
 		fileStore, err := database.NewFileStore(path)
 		if err != nil {
-			log.Fatalf("Failed to initialize file store: %v", err)
+			slog.Error("Failed to initialize file store", "error", err)
+			os.Exit(1)
 		}
 		ruleStore = fileStore
 		// Wrap with caching
 		templateProvider = database.NewCachingTemplateProvider(fileStore)
 	} else {
-		fmt.Println("Using MongoDB Store")
+		slog.Info("Using MongoDB Store")
 
 		// Initialize Rule Store
 		ruleMongoStore, err := database.NewMongoStore(ctx, cfg.Database.ConnectionString, cfg.Database.DatabaseName)
 		if err != nil {
-			log.Fatalf("Failed to connect to Rules MongoDB: %v", err)
+			slog.Error("Failed to connect to Rules MongoDB", "error", err)
+			os.Exit(1)
 		}
 		defer ruleMongoStore.Close(ctx)
 		ruleStore = ruleMongoStore
@@ -63,35 +70,37 @@ func main() {
 		if tmplConnStr == cfg.Database.ConnectionString && tmplDBName == cfg.Database.DatabaseName {
 			templateProvider = database.NewCachingTemplateProvider(ruleMongoStore)
 		} else {
-			fmt.Printf("Using separate MongoDB for Templates: %s\n", tmplDBName)
+			slog.Info("Using separate MongoDB for Templates", "database", tmplDBName)
 			tmplMongoStore, err := database.NewMongoStore(ctx, tmplConnStr, tmplDBName)
 			if err != nil {
-				log.Fatalf("Failed to connect to Templates MongoDB: %v", err)
+				slog.Error("Failed to connect to Templates MongoDB", "error", err)
+				os.Exit(1)
 			}
 			defer tmplMongoStore.Close(ctx)
 			templateProvider = database.NewCachingTemplateProvider(tmplMongoStore)
 		}
 	}
 
-	// 3. Initialize Services
+	// 4. Initialize Services
 	validator := validation.NewJSONSchemaValidator()
 	// Use the initialized store and provider
 	ruleService := rules.NewService(templateProvider, validator)
 
 	// Seed default templates
 	if err := rules.SeedTemplates(ctx, templateProvider, "./templates"); err != nil {
-		log.Printf("Warning: Failed to seed templates: %v", err)
+		slog.Warn("Failed to seed templates", "error", err)
 	}
 
-	// 4. Initialize API
+	// 5. Initialize API
 	apiInstance := api.NewAPI()
 	api.NewRuleHandlers(apiInstance.Huma, ruleStore, ruleService)
 	api.NewTemplateHandlers(apiInstance.Huma, templateProvider, validator, ruleService)
 
-	// 5. Start Server
+	// 6. Start Server
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
-	fmt.Printf("Server listening on %s\n", addr)
+	slog.Info("Server listening", "address", addr)
 	if err := apiInstance.Start(addr); err != nil {
-		log.Fatalf("Server failed: %v", err)
+		slog.Error("Server failed", "error", err)
+		os.Exit(1)
 	}
 }

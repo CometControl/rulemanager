@@ -10,6 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// Helper function to create string pointers for condition values
+func stringPtr(s string) *string {
+	return &s
+}
+
 func TestPipelineProcessor_Execute(t *testing.T) {
 	// Mock Datasource
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -44,9 +49,7 @@ func TestPipelineProcessor_Execute(t *testing.T) {
 				{
 					Name: "Check Metric",
 					Type: "validate_metric_exists",
-					Parameters: map[string]interface{}{
-						"metric_name": "existing_metric",
-					},
+					Parameters: json.RawMessage(`{"metric_name": "existing_metric"}`),
 				},
 			},
 			ruleParams:  json.RawMessage(`{}`),
@@ -58,9 +61,7 @@ func TestPipelineProcessor_Execute(t *testing.T) {
 				{
 					Name: "Check Metric",
 					Type: "validate_metric_exists",
-					Parameters: map[string]interface{}{
-						"metric_name": "non_existent_metric",
-					},
+					Parameters: json.RawMessage(`{"metric_name": "non_existent_metric"}`),
 				},
 			},
 			ruleParams:  json.RawMessage(`{}`),
@@ -74,11 +75,9 @@ func TestPipelineProcessor_Execute(t *testing.T) {
 					Type: "validate_metric_exists",
 					Condition: &PipelineCondition{
 						Property: "check",
-						Equals:   "yes",
+						StringValue: stringPtr("yes"),
 					},
-					Parameters: map[string]interface{}{
-						"metric_name": "existing_metric",
-					},
+					Parameters: json.RawMessage(`{"metric_name": "existing_metric"}`),
 				},
 			},
 			ruleParams:  json.RawMessage(`{"check": "yes"}`),
@@ -92,11 +91,9 @@ func TestPipelineProcessor_Execute(t *testing.T) {
 					Type: "validate_metric_exists",
 					Condition: &PipelineCondition{
 						Property: "check",
-						Equals:   "yes",
+						StringValue: stringPtr("yes"),
 					},
-					Parameters: map[string]interface{}{
-						"metric_name": "non_existent_metric",
-					},
+					Parameters: json.RawMessage(`{"metric_name": "non_existent_metric"}`),
 				},
 			},
 			ruleParams:  json.RawMessage(`{"check": "yes"}`),
@@ -110,11 +107,9 @@ func TestPipelineProcessor_Execute(t *testing.T) {
 					Type: "validate_metric_exists",
 					Condition: &PipelineCondition{
 						Property: "check",
-						Equals:   "yes",
+						StringValue: stringPtr("yes"),
 					},
-					Parameters: map[string]interface{}{
-						"metric_name": "non_existent_metric",
-					},
+					Parameters: json.RawMessage(`{"metric_name": "non_existent_metric"}`),
 				},
 			},
 			ruleParams:  json.RawMessage(`{"check": "no"}`),
@@ -126,9 +121,7 @@ func TestPipelineProcessor_Execute(t *testing.T) {
 				{
 					Name: "Check Metric",
 					Type: "validate_metric_exists",
-					Parameters: map[string]interface{}{
-						"metric_name": "{{ .metric }}",
-					},
+					Parameters: json.RawMessage(`{"metric_name": "{{ .metric }}"}`),
 				},
 			},
 			ruleParams:  json.RawMessage(`{"metric": "existing_metric"}`),
@@ -182,9 +175,7 @@ func TestPipelineProcessor_TargetValidation(t *testing.T) {
 				{
 					Name: "validate_namespace_metrics",
 					Type: "validate_metric_exists",
-					Parameters: map[string]interface{}{
-						"metric_name": "kube_namespace_status_phase",
-					},
+					Parameters: json.RawMessage(`{"metric_name": "kube_namespace_status_phase"}`),
 				},
 			},
 			params: map[string]interface{}{
@@ -202,9 +193,7 @@ func TestPipelineProcessor_TargetValidation(t *testing.T) {
 				{
 					Name: "validate_namespace_metrics",
 					Type: "validate_metric_exists",
-					Parameters: map[string]interface{}{
-						"metric_name": "kube_pod_info",
-					},
+					Parameters: json.RawMessage(`{"metric_name": "kube_pod_info"}`),
 				},
 			},
 			params: map[string]interface{}{
@@ -230,3 +219,6 @@ func TestPipelineProcessor_TargetValidation(t *testing.T) {
 		})
 	}
 }
+
+
+

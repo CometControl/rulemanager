@@ -3,6 +3,7 @@ package rules
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,14 +37,14 @@ func SeedTemplates(ctx context.Context, provider database.TemplateProvider, temp
 
 		// Check if exists
 		if _, err := provider.GetSchema(ctx, name); err == nil {
-			fmt.Printf("Schema %s already exists, skipping seed.\n", name)
+			slog.Info("Schema already exists, skipping seed", "name", name)
 			continue
 		}
 
 		if err := provider.CreateSchema(ctx, name, string(content)); err != nil {
 			return fmt.Errorf("failed to create schema %s: %w", name, err)
 		}
-		fmt.Printf("Seeded schema: %s\n", name)
+		slog.Info("Seeded schema", "name", name)
 	}
 
 	// 2. Seed Templates from templates/go_templates
@@ -69,14 +70,14 @@ func SeedTemplates(ctx context.Context, provider database.TemplateProvider, temp
 
 		// Check if exists
 		if _, err := provider.GetTemplate(ctx, name); err == nil {
-			fmt.Printf("Template %s already exists, skipping seed.\n", name)
+			slog.Info("Template already exists, skipping seed", "name", name)
 			continue
 		}
 
 		if err := provider.CreateTemplate(ctx, name, string(content)); err != nil {
 			return fmt.Errorf("failed to create template %s: %w", name, err)
 		}
-		fmt.Printf("Seeded template: %s\n", name)
+		slog.Info("Seeded template", "name", name)
 	}
 
 	return nil

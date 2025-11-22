@@ -11,6 +11,7 @@ type Config struct {
 	Server          ServerConfig   `mapstructure:"server"`
 	Database        DatabaseConfig `mapstructure:"database"`
 	TemplateStorage StorageConfig  `mapstructure:"template_storage"`
+	Logging         LoggingConfig  `mapstructure:"logging"`
 }
 
 // ServerConfig holds the HTTP server configuration.
@@ -34,6 +35,18 @@ type StorageConfig struct {
 // FileStoreConfig holds the file system storage configuration.
 type FileStoreConfig struct {
 	Path string `mapstructure:"path"`
+}
+
+// LoggingConfig holds the logging configuration.
+type LoggingConfig struct {
+	Level      string `mapstructure:"level"`       // debug, info, warn, error
+	Format     string `mapstructure:"format"`      // json, text
+	Output     string `mapstructure:"output"`      // stdout, file
+	FilePath   string `mapstructure:"file_path"`   // Path to log file
+	MaxSize    int    `mapstructure:"max_size"`    // Megabytes
+	MaxBackups int    `mapstructure:"max_backups"` // Number of backups
+	MaxAge     int    `mapstructure:"max_age"`     // Days
+	Compress   bool   `mapstructure:"compress"`    // Compress backups
 }
 
 // LoadConfig reads the configuration from config files and environment variables.

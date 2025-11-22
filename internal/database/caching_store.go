@@ -22,7 +22,13 @@ func NewCachingTemplateProvider(provider TemplateProvider) *CachingTemplateProvi
 // GetSchema retrieves a schema by name, checking the cache first.
 func (c *CachingTemplateProvider) GetSchema(ctx context.Context, name string) (string, error) {
 	if val, ok := c.schemas.Load(name); ok {
-		return val.(string), nil
+		str, ok := val.(string)
+		if !ok {
+			// Cache corruption - invalidate and reload
+			c.InvalidateSchema(name)
+		} else {
+			return str, nil
+		}
 	}
 
 	schema, err := c.provider.GetSchema(ctx, name)
@@ -37,7 +43,13 @@ func (c *CachingTemplateProvider) GetSchema(ctx context.Context, name string) (s
 // GetTemplate retrieves a template by name, checking the cache first.
 func (c *CachingTemplateProvider) GetTemplate(ctx context.Context, name string) (string, error) {
 	if val, ok := c.templates.Load(name); ok {
-		return val.(string), nil
+		str, ok := val.(string)
+		if !ok {
+			// Cache corruption - invalidate and reload
+			c.InvalidateTemplate(name)
+		} else {
+			return str, nil
+		}
 	}
 
 	tmpl, err := c.provider.GetTemplate(ctx, name)

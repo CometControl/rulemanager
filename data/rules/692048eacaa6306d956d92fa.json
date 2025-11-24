@@ -1,6 +1,6 @@
 {
   "id": "692048eacaa6306d956d92fa",
-  "templateName": "openshift",
+  "templateName": "k8s",
   "parameters": {
     "target": {
       "environment": "prod",

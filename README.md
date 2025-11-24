@@ -29,11 +29,11 @@ The **Schema** defines the "contract" for the rule. It is a standard [JSON Schem
     *   Set constraints (e.g., `severity` must be one of `critical`, `warning`, `info`).
     *   **Pipelines**: Advanced validation logic (e.g., "check if metric X exists in Prometheus") can be embedded directly in the schema metadata.
 
-**Example Schema Snippet (from `openshift.json`):**
+**Example Schema Snippet (from `k8s.json`):**
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema",
-  "title": "Openshift Monitoring Rule",
+  "title": "k8s Monitoring Rule",
   "type": "object",
   "properties": {
     "target": {
@@ -45,7 +45,7 @@ The **Schema** defines the "contract" for the rule. It is a standard [JSON Schem
         },
         "namespace": {
           "type": "string",
-          "description": "The Openshift namespace"
+          "description": "The k8s namespace"
         },
         "workload": {
           "type": "string",
@@ -123,7 +123,7 @@ The **Template** defines how the validated parameters are transformed into the f
     *   Logic and Control Flow: Use `if/else` and loops to generate dynamic rules based on input.
     *   Formatting: Ensure the output is always valid, properly indented YAML.
 
-**Example Template Snippet (from `openshift.tmpl`):**
+**Example Template Snippet (from `k8s.tmpl`):**
 ```yaml
 {{- $target := .target -}}
 {{- $rule := .rule -}}
@@ -209,15 +209,15 @@ Ensure your `config.yaml` is set up correctly or pass configuration via environm
 
 ## Usage
 
-### Creating a Rule
+### Creating Rules
 
-You can create a new rule by sending a POST request to the API.
+You can create one or more rules by sending a POST request to the API. The example below creates both a CPU warning and a RAM critical alert for the same workload in a single request.
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/rules \
   -H "Content-Type: application/json" \
   -d '{
-    "templateName": "openshift",
+    "templateName": "k8s",
     "parameters": {
       "target": {
         "environment": "production",
@@ -227,18 +227,26 @@ curl -X POST http://localhost:8080/api/v1/rules \
       "rules": [
         {
           "rule_type": "cpu",
+          "severity": "warning",
+          "operator": ">",
+          "threshold": 0.8
+        },
+        {
+          "rule_type": "ram",
           "severity": "critical",
           "operator": ">",
-          "threshold": 0.9
+          "threshold": 2147483648
         }
       ]
     }
   }'
 ```
 
+This single request creates 2 separate rule files (one for CPU warning, one for RAM critical alert) for the same workload, sharing the same target configuration.
+
 ### Retrieving Rules for vmalert
 
-Configure your `vmalert` to poll this endpoint:
+Configure your `vmalert` instance to poll this endpoint to fetch all generated rules in YAML format:
 
 ```bash
 curl http://localhost:8080/api/v1/rules/vmalert
@@ -271,10 +279,10 @@ rulemanager/
 ├── templates/                  # Default templates (seeded on startup)
 │   ├── _base/                 # JSON Schemas
 │   │   ├── demo.json
-│   │   └── openshift.json
+│   │   └── k8s.json
 │   └── go_templates/          # Go templates
 │       ├── demo.tmpl
-│       └── openshift.tmpl
+│       └── k8s.tmpl
 ├── docs/                       # Documentation
 ├── config.yaml                 # Configuration file
 └── go.mod
@@ -328,52 +336,19 @@ The API uses standard REST conventions and returns JSON responses.
 | `GET` | `/docs` | Interactive OpenAPI documentation (Swagger UI) |
 | `GET` | `/openapi.json` | OpenAPI specification |
 
-**Example: Creating Multiple Rules**
-
-```bash
-curl -X POST http://localhost:8080/api/v1/rules \
-  -H "Content-Type: application/json" \
-  -d '{
-    "templateName": "openshift",
-    "parameters": {
-      "target": {
-        "environment": "production",
-        "namespace": "payment-services",
-        "workload": "payment-api"
-      },
-      "rules": [
-        {
-          "rule_type": "cpu",
-          "severity": "warning",
-          "operator": ">",
-          "threshold": 80
-        },
-        {
-          "rule_type": "ram",
-          "severity": "critical",
-          "operator": ">",
-          "threshold": 2147483648
-        }
-      ]
-    }
-  }'
-```
-
-This single request creates 2 separate rules (CPU and RAM alerts) for the same workload.
-
-**Example: Searching Rules**
+### Searching Rules
 
 The search endpoint supports explicit filtering by template name and nested parameters.
 
 ```bash
 # Search by template name
-curl "http://localhost:8080/api/v1/rules/search?templateName=openshift"
+curl "http://localhost:8080/api/v1/rules/search?templateName=k8s"
 
 # Search by nested parameter (using dot notation)
 curl "http://localhost:8080/api/v1/rules/search?parameters.target.environment=production"
 
 # Combine filters
-curl "http://localhost:8080/api/v1/rules/search?templateName=openshift&parameters.target.service=payment-api"
+curl "http://localhost:8080/api/v1/rules/search?templateName=k8s&parameters.target.service=payment-api"
 ```
 
 ## Architecture

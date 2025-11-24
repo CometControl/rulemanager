@@ -33,10 +33,10 @@ This revised structure is more idiomatic for a growing Go project and more accur
 |   |   |-- schema.go           // JSON Schema validation logic
 |-- /templates               // Default templates if using 'local' provider
 |   |-- /_base
-|   |   |-- openshift.json
+|   |   |-- k8s.json
 |   |-- /go_templates
-|   |   |-- openshift.tmpl
-|   |-- openshift.json
+|   |   |-- k8s.tmpl
+|   |-- k8s.json
 |-- go.mod
 |-- go.sum
 |-- README.md
@@ -98,20 +98,20 @@ This approach allows us to:
 *   Enforce consistency in labeling and annotations.
 *   Create a simplified and user-friendly API for rule creation.
 
-For each "monitoring world" (e.g., OpenShift, Kafka), we can choose to have a single consolidated file for all its related rules, or separate files for each rule. For OpenShift, we will use a consolidated approach.
+For each "monitoring world" (e.g., k8s, Kafka), we can choose to have a single consolidated file for all its related rules, or separate files for each rule. For k8s, we will use a consolidated approach.
 
 **1. Base Schemas for Monitoring Worlds:**
 
 We will create base schemas that define the common parameters required for each monitoring world. These will be stored in a `_base` subdirectory within `/templates`.
 
-**Example: OpenShift Base Schema (`/templates/_base/openshift.json`)**
+**Example: k8s Base Schema (`/templates/_base/k8s.json`)**
 
-This schema defines the core identifiers for any OpenShift-related alert.
+This schema defines the core identifiers for any k8s-related alert.
 
 ```json
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Openshift Monitoring Rule",
+    "title": "k8s Monitoring Rule",
     "type": "object",
     "properties": {
         "environment": {
@@ -120,7 +120,7 @@ This schema defines the core identifiers for any OpenShift-related alert.
         },
         "namespace": {
             "type": "string",
-            "description": "The Openshift namespace"
+            "description": "The k8s namespace"
         },
         "workload": {
             "type": "string",
@@ -217,7 +217,7 @@ In this example, the `allOf` block is used to conditionally apply `enum` restric
 
 **3. Generated Prometheus Rule:**
 
-The Rule Manager will take the user's input, validated against the `openshift.json` schema, and generate a Prometheus rule. The specific rule generated will depend on the `rule_type` provided.
+The Rule Manager will take the user's input, validated against the `k8s.json` schema, and generate a Prometheus rule. The specific rule generated will depend on the `rule_type` provided.
 
 This approach provides a clear separation between the user-friendly API and the underlying Prometheus configuration, while ensuring that the generated rules are valid and consistent.
 
@@ -227,23 +227,23 @@ The core of the rule generation logic lies in the templating engine. While the J
 
 **1. Storage:**
 
-The base templates for each rule will be stored as Go template files (with a `.tmpl` extension). For consolidated rules like OpenShift, there will be a single template file.
+The base templates for each rule will be stored as Go template files (with a `.tmpl` extension). For consolidated rules like k8s, there will be a single template file.
 
 **Example Directory Structure:**
 '''
 /templates
 |-- /_base
-|   |-- openshift.json
+|   |-- k8s.json
 |-- /go_templates
-|   |-- openshift.tmpl      <-- The consolidated Go template
-|-- openshift.json          <-- The consolidated JSON schema
+|   |-- k8s.tmpl      <-- The consolidated Go template
+|-- k8s.json          <-- The consolidated JSON schema
 '''
 
 **2. Template Content:**
 
 The `.tmpl` files contain the skeleton of the Prometheus rule in YAML format. For consolidated templates, we use `if/else` blocks to generate the correct rule based on the `rule_type`.
 
-**Example: `/templates/go_templates/openshift.tmpl`**
+**Example: `/templates/go_templates/k8s.tmpl`**
 
 ```yaml
 {{ if eq .rule_type "cpu" }}
@@ -273,9 +273,9 @@ The `.tmpl` files contain the skeleton of the Prometheus rule in YAML format. Fo
 **3. Templating Process:**
 
 When a user submits a request to create a rule:
-1.  The service identifies the requested rule "world" (e.g., `openshift`).
-2.  It validates the user's JSON input against the corresponding schema (`/templates/openshift.json`).
-3.  Upon successful validation, it loads the corresponding Go template (`/templates/go_templates/openshift.tmpl`).
+1.  The service identifies the requested rule "world" (e.g., `k8s`).
+2.  It validates the user's JSON input against the corresponding schema (`/templates/k8s.json`).
+3.  Upon successful validation, it loads the corresponding Go template (`/templates/go_templates/k8s.tmpl`).
 4.  It executes the template, passing the user's validated JSON data (which includes the `rule_type`) as the input.
 5.  The output is the final, rendered Prometheus rule in YAML format, ready to be used.
 
@@ -315,14 +315,14 @@ When using MongoDB, templates would be stored in a collection with a structure l
 
 ```json
 {
-  "_id": "openshift",
+  "_id": "k8s",
   "type": "schema", // "schema" or "template"
   "content": "{ ... JSON schema content ... }"
 }
 ```
 ```json
 {
-  "_id": "openshift_template",
+  "_id": "k8s_template",
   "type": "template",
   "content": "{{ if eq .rule_type ... Go template content ... }}"
 }
@@ -480,7 +480,7 @@ To allow seamless integration with the VictoriaMetrics ecosystem, the service mu
 **Example YAML Format:**
 ```yaml
 groups:
-  - name: openshift_rules
+  - name: k8s_rules
     rules:
       - alert: HighCpuUsage_my-app
         expr: "sum(rate(container_cpu_usage_seconds_total{...}[5m])) / ... > 80"
@@ -514,7 +514,7 @@ This endpoint will be designed for frequent polling by `vmalert` instances.
 
 The handler for this endpoint will:
 1.  Fetch all saved rules from the database.
-2.  Group these rules. A default grouping strategy could be by "monitoring world" (e.g., `openshift`, `kafka`), which can be derived from the template name used by the rule.
+2.  Group these rules. A default grouping strategy could be by "monitoring world" (e.g., `k8s`, `kafka`), which can be derived from the template name used by the rule.
 3.  For each rule, render its corresponding Go template with the saved parameters to generate the final rule object (as a Go struct compatible with a YAML library).
 4.  Construct the final data structure containing the list of groups.
 5.  Use a standard Go YAML library (e.g., `gopkg.in/yaml.v3`) to marshal the data structure into a single YAML string.
@@ -680,23 +680,23 @@ A new top-level `pipelines` array can be added to any rule template's JSON schem
 
 **2. Conditional Execution for Consolidated Templates:**
 
-For consolidated templates that handle multiple rule types (e.g., a single `openshift.json` for both CPU and memory alerts), pipeline steps can be executed conditionally. This is achieved by adding a `condition` object to the pipeline step definition. The step will only run if the user's input matches the condition.
+For consolidated templates that handle multiple rule types (e.g., a single `k8s.json` for both CPU and memory alerts), pipeline steps can be executed conditionally. This is achieved by adding a `condition` object to the pipeline step definition. The step will only run if the user's input matches the condition.
 
 **Example: Schema with a Conditional Metric Validation Pipeline**
 
-This example for a consolidated OpenShift template shows how to run a specific validation check only when the corresponding `rule_type` is selected by the user.
+This example for a consolidated k8s template shows how to run a specific validation check only when the corresponding `rule_type` is selected by the user.
 
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "OpenShift Consolidated Rules",
+  "title": "k8s Consolidated Rules",
   "datasource": {
     "type": "prometheus",
     "url": "https://prometheus.example.com:9090"
   },
   "pipelines": [
     {
-      "name": "Validate OpenShift CPU Metric",
+      "name": "Validate k8s CPU Metric",
       "condition": { "property": "rule_type", "equals": "cpu_usage" },
       "type": "validate_metric_exists",
       "parameters": {
@@ -705,7 +705,7 @@ This example for a consolidated OpenShift template shows how to run a specific v
       }
     },
     {
-      "name": "Validate OpenShift Memory Metric",
+      "name": "Validate k8s Memory Metric",
       "condition": { "property": "rule_type", "equals": "memory_usage" },
       "type": "validate_metric_exists",
       "parameters": {

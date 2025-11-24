@@ -25,14 +25,14 @@ func TestFileStore_SearchRules(t *testing.T) {
 	// Create test rules
 	rule1 := &Rule{
 		ID:           "1",
-		TemplateName: "openshift",
+		TemplateName: "k8s",
 		Parameters:   json.RawMessage(`{"target": {"namespace": "ns1", "env": "prod"}}`),
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
 	rule2 := &Rule{
 		ID:           "2",
-		TemplateName: "openshift",
+		TemplateName: "k8s",
 		Parameters:   json.RawMessage(`{"target": {"namespace": "ns2", "env": "prod"}}`),
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
@@ -50,7 +50,7 @@ func TestFileStore_SearchRules(t *testing.T) {
 	require.NoError(t, store.CreateRule(ctx, rule3))
 
 	t.Run("FilterByTemplate", func(t *testing.T) {
-		filter := RuleFilter{TemplateName: "openshift"}
+		filter := RuleFilter{TemplateName: "k8s"}
 		rules, err := store.SearchRules(ctx, filter)
 		assert.NoError(t, err)
 		assert.Len(t, rules, 2)
@@ -73,7 +73,7 @@ func TestFileStore_SearchRules(t *testing.T) {
 
 	t.Run("FilterByTemplateAndParameter", func(t *testing.T) {
 		filter := RuleFilter{
-			TemplateName: "openshift",
+			TemplateName: "k8s",
 			Parameters:   map[string]string{"target.namespace": "ns1"},
 		}
 		rules, err := store.SearchRules(ctx, filter)

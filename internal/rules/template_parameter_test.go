@@ -41,16 +41,16 @@ func (m *MockTemplateProvider) DeleteTemplate(ctx context.Context, name string) 
 
 func TestTemplateParameters(t *testing.T) {
 	// Locate template files
-	// Using openshift as the reference implementation for parameter testing
-	schemaPath := "c:\\Dev\\rulemanager\\templates\\_base\\openshift.json"
-	tmplPath := "c:\\Dev\\rulemanager\\templates\\go_templates\\openshift.tmpl"
+	// Using k8s as the reference implementation for parameter testing
+	schemaPath := "c:\\Dev\\rulemanager\\templates\\_base\\k8s.json"
+	tmplPath := "c:\\Dev\\rulemanager\\templates\\go_templates\\k8s.tmpl"
 
 	schemaBytes, err := os.ReadFile(schemaPath)
 	if err != nil {
 		wd, _ := os.Getwd()
 		rootDir := filepath.Join(wd, "..", "..")
-		schemaPath = filepath.Join(rootDir, "templates", "_base", "openshift.json")
-		tmplPath = filepath.Join(rootDir, "templates", "go_templates", "openshift.tmpl")
+		schemaPath = filepath.Join(rootDir, "templates", "_base", "k8s.json")
+		tmplPath = filepath.Join(rootDir, "templates", "go_templates", "k8s.tmpl")
 		schemaBytes, err = os.ReadFile(schemaPath)
 	}
 	assert.NoError(t, err, "Failed to read schema file")
@@ -62,8 +62,8 @@ func TestTemplateParameters(t *testing.T) {
 	tmplContent := string(tmplBytes)
 
 	mockTP := new(MockTemplateProvider)
-	mockTP.On("GetSchema", mock.Anything, "openshift").Return(schemaContent, nil)
-	mockTP.On("GetTemplate", mock.Anything, "openshift").Return(tmplContent, nil)
+	mockTP.On("GetSchema", mock.Anything, "k8s").Return(schemaContent, nil)
+	mockTP.On("GetTemplate", mock.Anything, "k8s").Return(tmplContent, nil)
 
 	validator := validation.NewJSONSchemaValidator()
 	svc := rules.NewService(mockTP, validator)
@@ -163,7 +163,7 @@ func TestTemplateParameters(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			paramBytes, _ := json.Marshal(tt.params)
-			got, err := svc.GenerateRule(context.Background(), "openshift", paramBytes)
+			got, err := svc.GenerateRule(context.Background(), "k8s", paramBytes)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {

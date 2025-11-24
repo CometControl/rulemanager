@@ -51,7 +51,7 @@ Once the user fills out the form, you can create one or more rules in a single r
 **Example:**
 ```json
 {
-  "templateName": "openshift",
+  "templateName": "k8s",
   "parameters": {
     "target": {
       "environment": "production",
@@ -77,12 +77,12 @@ This creates 3 separate rule entries, each independently manageable.
 -   **Search Rules**: `GET /api/v1/rules/search`
     -   **Description**: Search for rules using explicit filters.
     -   **Query Params**:
-        -   `templateName`: Filter by template name (e.g., `?templateName=openshift`).
+        -   `templateName`: Filter by template name (e.g., `?templateName=k8s`).
         -   `parameters.{path}`: Filter by any nested parameter using dot notation (e.g., `?parameters.target.environment=production`).
     -   **Examples**:
-        -   `GET /api/v1/rules/search?templateName=openshift`
+        -   `GET /api/v1/rules/search?templateName=k8s`
         -   `GET /api/v1/rules/search?parameters.target.service=payment-api`
-        -   `GET /api/v1/rules/search?templateName=openshift&parameters.target.environment=production`
+        -   `GET /api/v1/rules/search?templateName=k8s&parameters.target.environment=production`
     -   **Response**: Array of matching rule objects.
 
     

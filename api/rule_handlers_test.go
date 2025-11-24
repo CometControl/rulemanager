@@ -30,11 +30,11 @@ func TestRuleHandlers_CreateRule(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		input := &CreateRuleInput{}
-		input.Body.TemplateName = "openshift"
+		input.Body.TemplateName = "k8s"
 		input.Body.Parameters = json.RawMessage(`{"target": {"namespace": "test"}, "rules": [{"rule_type": "cpu"}]}`)
 
-		mockTP.On("GetSchema", ctx, "openshift").Return(schema, nil).Twice() // ValidateRule + GenerateRule
-		mockTP.On("GetTemplate", ctx, "openshift").Return(tmpl, nil).Once()
+		mockTP.On("GetSchema", ctx, "k8s").Return(schema, nil).Twice() // ValidateRule + GenerateRule
+		mockTP.On("GetTemplate", ctx, "k8s").Return(tmpl, nil).Once()
 		mockStore.On("CreateRule", ctx, mock.AnythingOfType("*database.Rule")).Return(nil).Once()
 
 		output, err := handlers.CreateRule(ctx, input)
@@ -50,11 +50,11 @@ func TestRuleHandlers_CreateRule(t *testing.T) {
 
 	t.Run("ValidationError", func(t *testing.T) {
 		input := &CreateRuleInput{}
-		input.Body.TemplateName = "openshift"
+		input.Body.TemplateName = "k8s"
 		input.Body.Parameters = json.RawMessage(`{"target": {"namespace": "test"}, "rules": [{"invalid": "data"}]}`)
 
 		badSchema := `{"type": "object", "properties": {"required_field": {"type": "string"}}, "required": ["required_field"]}`
-		mockTP.On("GetSchema", ctx, "openshift").Return(badSchema, nil).Once()
+		mockTP.On("GetSchema", ctx, "k8s").Return(badSchema, nil).Once()
 
 		output, err := handlers.CreateRule(ctx, input)
 
@@ -65,12 +65,12 @@ func TestRuleHandlers_CreateRule(t *testing.T) {
 
 	t.Run("GenerateError", func(t *testing.T) {
 		input := &CreateRuleInput{}
-		input.Body.TemplateName = "openshift"
+		input.Body.TemplateName = "k8s"
 		input.Body.Parameters = json.RawMessage(`{"target": {"namespace": "test"}, "rules": [{"rule_type": "cpu"}]}`)
 
 		badTmpl := `{{ .invalid_syntax`
-		mockTP.On("GetSchema", ctx, "openshift").Return(schema, nil).Twice() // ValidateRule + GenerateRule
-		mockTP.On("GetTemplate", ctx, "openshift").Return(badTmpl, nil).Once()
+		mockTP.On("GetSchema", ctx, "k8s").Return(schema, nil).Twice() // ValidateRule + GenerateRule
+		mockTP.On("GetTemplate", ctx, "k8s").Return(badTmpl, nil).Once()
 
 		output, err := handlers.CreateRule(ctx, input)
 
@@ -81,11 +81,11 @@ func TestRuleHandlers_CreateRule(t *testing.T) {
 
 	t.Run("StoreError", func(t *testing.T) {
 		input := &CreateRuleInput{}
-		input.Body.TemplateName = "openshift"
+		input.Body.TemplateName = "k8s"
 		input.Body.Parameters = json.RawMessage(`{"target": {"namespace": "test"}, "rules": [{"rule_type": "cpu"}]}`)
 
-		mockTP.On("GetSchema", ctx, "openshift").Return(schema, nil).Twice() // ValidateRule + GenerateRule
-		mockTP.On("GetTemplate", ctx, "openshift").Return(tmpl, nil).Once()
+		mockTP.On("GetSchema", ctx, "k8s").Return(schema, nil).Twice() // ValidateRule + GenerateRule
+		mockTP.On("GetTemplate", ctx, "k8s").Return(tmpl, nil).Once()
 		mockStore.On("CreateRule", ctx, mock.AnythingOfType("*database.Rule")).Return(errors.New("database error")).Once()
 
 		output, err := handlers.CreateRule(ctx, input)
@@ -98,7 +98,7 @@ func TestRuleHandlers_CreateRule(t *testing.T) {
 
 	t.Run("BatchCreation", func(t *testing.T) {
 		input := &CreateRuleInput{}
-		input.Body.TemplateName = "openshift"
+		input.Body.TemplateName = "k8s"
 		input.Body.Parameters = json.RawMessage(`{
 			"target": {"environment": "prod", "namespace": "test", "workload": "my-app"},
 			"rules": [
@@ -109,8 +109,8 @@ func TestRuleHandlers_CreateRule(t *testing.T) {
 		}`)
 
 		// Each rule needs validation + generation, and store creation
-		mockTP.On("GetSchema", ctx, "openshift").Return(schema, nil).Times(6)                       // 3 rules * 2 (ValidateRule + GenerateRule)
-		mockTP.On("GetTemplate", ctx, "openshift").Return(tmpl, nil).Times(3)                       // 3 rules
+		mockTP.On("GetSchema", ctx, "k8s").Return(schema, nil).Times(6)                       // 3 rules * 2 (ValidateRule + GenerateRule)
+		mockTP.On("GetTemplate", ctx, "k8s").Return(tmpl, nil).Times(3)                       // 3 rules
 		mockStore.On("CreateRule", ctx, mock.AnythingOfType("*database.Rule")).Return(nil).Times(3) // 3 rules
 
 		output, err := handlers.CreateRule(ctx, input)
@@ -128,7 +128,7 @@ func TestRuleHandlers_CreateRule(t *testing.T) {
 
 	t.Run("MissingRulesArray", func(t *testing.T) {
 		input := &CreateRuleInput{}
-		input.Body.TemplateName = "openshift"
+		input.Body.TemplateName = "k8s"
 		input.Body.Parameters = json.RawMessage(`{"target": {"namespace": "test"}, "rule": {"rule_type": "cpu"}}`)
 
 		output, err := handlers.CreateRule(ctx, input)
@@ -140,7 +140,7 @@ func TestRuleHandlers_CreateRule(t *testing.T) {
 
 	t.Run("EmptyRulesArray", func(t *testing.T) {
 		input := &CreateRuleInput{}
-		input.Body.TemplateName = "openshift"
+		input.Body.TemplateName = "k8s"
 		input.Body.Parameters = json.RawMessage(`{"target": {"namespace": "test"}, "rules": []}`)
 
 		output, err := handlers.CreateRule(ctx, input)
@@ -152,7 +152,7 @@ func TestRuleHandlers_CreateRule(t *testing.T) {
 
 	t.Run("MissingTarget", func(t *testing.T) {
 		input := &CreateRuleInput{}
-		input.Body.TemplateName = "openshift"
+		input.Body.TemplateName = "k8s"
 		input.Body.Parameters = json.RawMessage(`{"rules": [{"rule_type": "cpu"}]}`)
 
 		output, err := handlers.CreateRule(ctx, input)
@@ -179,7 +179,7 @@ func TestRuleHandlers_GetRule(t *testing.T) {
 		ruleID := "123"
 		expectedRule := &database.Rule{
 			ID:           ruleID,
-			TemplateName: "openshift",
+			TemplateName: "k8s",
 			Parameters:   json.RawMessage(`{}`),
 		}
 
@@ -219,8 +219,8 @@ func TestRuleHandlers_ListRules(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		expectedRules := []*database.Rule{
-			{ID: "1", TemplateName: "openshift"},
-			{ID: "2", TemplateName: "openshift"},
+			{ID: "1", TemplateName: "k8s"},
+			{ID: "2", TemplateName: "k8s"},
 		}
 
 		mockStore.On("ListRules", ctx, 0, 10).Return(expectedRules, nil).Once()
@@ -261,18 +261,18 @@ func TestRuleHandlers_UpdateRule(t *testing.T) {
 
 	t.Run("Success_FullUpdate", func(t *testing.T) {
 		input := &UpdateRuleInput{ID: "123"}
-		input.Body.TemplateName = "openshift"
+		input.Body.TemplateName = "k8s"
 		input.Body.Parameters = json.RawMessage(`{"target": {"namespace": "test"}}`)
 
 		existingRule := &database.Rule{
 			ID:           "123",
-			TemplateName: "openshift",
+			TemplateName: "k8s",
 			Parameters:   json.RawMessage(`{"target": {"namespace": "old"}}`),
 		}
 
 		mockStore.On("GetRule", ctx, "123").Return(existingRule, nil).Once()
-		mockTP.On("GetSchema", ctx, "openshift").Return(schema, nil).Twice() // ValidateRule + GenerateRule
-		mockTP.On("GetTemplate", ctx, "openshift").Return(tmpl, nil).Once()
+		mockTP.On("GetSchema", ctx, "k8s").Return(schema, nil).Twice() // ValidateRule + GenerateRule
+		mockTP.On("GetTemplate", ctx, "k8s").Return(tmpl, nil).Once()
 		mockStore.On("UpdateRule", ctx, "123", mock.AnythingOfType("*database.Rule")).Return(nil).Once()
 
 		output, err := handlers.UpdateRule(ctx, input)
@@ -292,7 +292,7 @@ func TestRuleHandlers_UpdateRule(t *testing.T) {
 
 		existingRule := &database.Rule{
 			ID:           "123",
-			TemplateName: "openshift",
+			TemplateName: "k8s",
 			Parameters:   json.RawMessage(`{"target": {"environment": "prod", "namespace": "old-ns"}}`),
 		}
 
@@ -301,8 +301,8 @@ func TestRuleHandlers_UpdateRule(t *testing.T) {
 		// Expect merged parameters: environment=prod (kept), namespace=new-ns (updated)
 		// We can't easily match the exact JSON string in mock expectation due to key ordering,
 		// but we can verify the behavior by what is passed to ValidateRule
-		mockTP.On("GetSchema", ctx, "openshift").Return(schema, nil).Twice()
-		mockTP.On("GetTemplate", ctx, "openshift").Return(tmpl, nil).Once()
+		mockTP.On("GetSchema", ctx, "k8s").Return(schema, nil).Twice()
+		mockTP.On("GetTemplate", ctx, "k8s").Return(tmpl, nil).Once()
 
 		// Verify UpdateRule is called with merged parameters
 		mockStore.On("UpdateRule", ctx, "123", mock.MatchedBy(func(r *database.Rule) bool {
@@ -311,7 +311,7 @@ func TestRuleHandlers_UpdateRule(t *testing.T) {
 				return false
 			}
 			target := params["target"].(map[string]interface{})
-			return r.TemplateName == "openshift" &&
+			return r.TemplateName == "k8s" &&
 				target["environment"] == "prod" &&
 				target["namespace"] == "new-ns"
 		})).Return(nil).Once()
@@ -326,19 +326,19 @@ func TestRuleHandlers_UpdateRule(t *testing.T) {
 
 	t.Run("ValidationError", func(t *testing.T) {
 		input := &UpdateRuleInput{ID: "123"}
-		input.Body.TemplateName = "openshift"
+		input.Body.TemplateName = "k8s"
 		input.Body.Parameters = json.RawMessage(`{"invalid": "data"}`)
 
 		existingRule := &database.Rule{
 			ID:           "123",
-			TemplateName: "openshift",
+			TemplateName: "k8s",
 			Parameters:   json.RawMessage(`{}`),
 		}
 
 		mockStore.On("GetRule", ctx, "123").Return(existingRule, nil).Once()
 
 		badSchema := `{"type": "object", "properties": {"required_field": {"type": "string"}}, "required": ["required_field"]}`
-		mockTP.On("GetSchema", ctx, "openshift").Return(badSchema, nil).Once()
+		mockTP.On("GetSchema", ctx, "k8s").Return(badSchema, nil).Once()
 
 		output, err := handlers.UpdateRule(ctx, input)
 
@@ -349,18 +349,18 @@ func TestRuleHandlers_UpdateRule(t *testing.T) {
 
 	t.Run("StoreError", func(t *testing.T) {
 		input := &UpdateRuleInput{ID: "123"}
-		input.Body.TemplateName = "openshift"
+		input.Body.TemplateName = "k8s"
 		input.Body.Parameters = json.RawMessage(`{"target": {"namespace": "test"}}`)
 
 		existingRule := &database.Rule{
 			ID:           "123",
-			TemplateName: "openshift",
+			TemplateName: "k8s",
 			Parameters:   json.RawMessage(`{}`),
 		}
 
 		mockStore.On("GetRule", ctx, "123").Return(existingRule, nil).Once()
-		mockTP.On("GetSchema", ctx, "openshift").Return(schema, nil).Twice() // ValidateRule + GenerateRule
-		mockTP.On("GetTemplate", ctx, "openshift").Return(tmpl, nil).Once()
+		mockTP.On("GetSchema", ctx, "k8s").Return(schema, nil).Twice() // ValidateRule + GenerateRule
+		mockTP.On("GetTemplate", ctx, "k8s").Return(tmpl, nil).Once()
 		mockStore.On("UpdateRule", ctx, "123", mock.AnythingOfType("*database.Rule")).Return(errors.New("database error")).Once()
 
 		output, err := handlers.UpdateRule(ctx, input)
@@ -522,7 +522,7 @@ func TestRuleHandlers_SearchRules(t *testing.T) {
 		}
 		allRules := []*database.Rule{
 			{ID: "1", TemplateName: "demo"},
-			{ID: "2", TemplateName: "openshift"},
+			{ID: "2", TemplateName: "k8s"},
 		}
 		mockStore.On("SearchRules", ctx, expectedFilter).Return(allRules, nil).Once()
 

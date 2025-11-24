@@ -1,6 +1,6 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema",
-    "title": "Openshift Monitoring Rule",
+    "title": "K8s Monitoring Rule",
     "type": "object",
     "properties": {
         "target": {
@@ -12,7 +12,7 @@
                 },
                 "namespace": {
                     "type": "string",
-                    "description": "The Openshift namespace"
+                    "description": "The K8s namespace"
                 },
                 "workload": {
                     "type": "string",

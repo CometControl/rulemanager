@@ -45,6 +45,7 @@ Templates consist of two parts:
 *   `POST /api/v1/rules`: Create a new rule.
     *   Body: `{ "templateName": "string", "parameters": { ... } }`
 *   `GET /api/v1/rules`: List rules (pagination supported).
+*   `GET /api/v1/rules/search`: Search rules by template and parameters.
 *   `GET /api/v1/rules/{id}`: Get a specific rule.
 *   `PUT /api/v1/rules/{id}`: Update a rule.
 *   `DELETE /api/v1/rules/{id}`: Delete a rule.

@@ -5,7 +5,6 @@ import (
 	"sync"
 )
 
-// CachingTemplateProvider wraps a TemplateProvider and caches the results.
 type CachingTemplateProvider struct {
 	provider  TemplateProvider
 	schemas   sync.Map

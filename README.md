@@ -301,6 +301,7 @@ The API uses standard REST conventions and returns JSON responses.
 | `GET` | `/api/v1/rules/{id}` | Get a specific rule by ID |
 | `PUT` | `/api/v1/rules/{id}` | Update a rule (supports partial updates) |
 | `DELETE` | `/api/v1/rules/{id}` | Delete a rule |
+| `GET` | `/api/v1/rules/search` | Search rules by template and parameters |
 
 ### Templates Management
 
@@ -359,6 +360,21 @@ curl -X POST http://localhost:8080/api/v1/rules \
 ```
 
 This single request creates 2 separate rules (CPU and RAM alerts) for the same workload.
+
+**Example: Searching Rules**
+
+The search endpoint supports explicit filtering by template name and nested parameters.
+
+```bash
+# Search by template name
+curl "http://localhost:8080/api/v1/rules/search?templateName=openshift"
+
+# Search by nested parameter (using dot notation)
+curl "http://localhost:8080/api/v1/rules/search?parameters.target.environment=production"
+
+# Combine filters
+curl "http://localhost:8080/api/v1/rules/search?templateName=openshift&parameters.target.service=payment-api"
+```
 
 ## Architecture
 

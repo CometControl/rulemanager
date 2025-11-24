@@ -73,6 +73,18 @@ This creates 3 separate rule entries, each independently manageable.
 -   **List Rules**: `GET /api/v1/rules`
     -   **Query Params**: `offset` (default 0), `limit` (default 10)
     -   **Response**: Array of rule objects.
+
+-   **Search Rules**: `GET /api/v1/rules/search`
+    -   **Description**: Search for rules using explicit filters.
+    -   **Query Params**:
+        -   `templateName`: Filter by template name (e.g., `?templateName=openshift`).
+        -   `parameters.{path}`: Filter by any nested parameter using dot notation (e.g., `?parameters.target.environment=production`).
+    -   **Examples**:
+        -   `GET /api/v1/rules/search?templateName=openshift`
+        -   `GET /api/v1/rules/search?parameters.target.service=payment-api`
+        -   `GET /api/v1/rules/search?templateName=openshift&parameters.target.environment=production`
+    -   **Response**: Array of matching rule objects.
+
     
 -   **Get Rule**: `GET /api/v1/rules/{id}`
     -   **Response**: Single rule object.

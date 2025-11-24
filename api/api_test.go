@@ -51,6 +51,10 @@ func (m *MockRuleStore) DeleteRule(ctx context.Context, id string) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
 }
+func (m *MockRuleStore) SearchRules(ctx context.Context, filter database.RuleFilter) ([]*database.Rule, error) {
+	args := m.Called(ctx, filter)
+	return args.Get(0).([]*database.Rule), args.Error(1)
+}
 
 // We also need the TemplateProvider for the rules service.
 type MockTemplateProvider struct {

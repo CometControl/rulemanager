@@ -407,3 +407,150 @@ func TestRuleHandlers_DeleteRule(t *testing.T) {
 		mockStore.AssertExpectations(t)
 	})
 }
+
+func TestRuleHandlers_SearchRules(t *testing.T) {
+	mockStore := new(MockRuleStore)
+	handlers := &RuleHandlers{
+		ruleStore: mockStore,
+	}
+	ctx := context.Background()
+
+	t.Run("SearchByTemplateName", func(t *testing.T) {
+		expectedRules := []*database.Rule{
+			{ID: "1", TemplateName: "demo"},
+			{ID: "2", TemplateName: "demo"},
+		}
+
+		expectedFilter := database.RuleFilter{
+			TemplateName: "demo",
+			Parameters:   map[string]string{},
+		}
+		mockStore.On("SearchRules", ctx, expectedFilter).Return(expectedRules, nil).Once()
+
+		input := &SearchRulesInput{
+			QueryParams: map[string]string{"templateName": "demo"},
+		}
+		output, err := handlers.SearchRules(ctx, input)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, output)
+		assert.Equal(t, expectedRules, output.Body)
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("SearchByNestedParameter", func(t *testing.T) {
+		expectedRules := []*database.Rule{
+			{ID: "1", TemplateName: "demo"},
+		}
+
+		expectedFilter := database.RuleFilter{
+			TemplateName: "",
+			Parameters: map[string]string{
+				"parameters.target.service": "payment-service",
+			},
+		}
+		mockStore.On("SearchRules", ctx, expectedFilter).Return(expectedRules, nil).Once()
+
+		input := &SearchRulesInput{
+			QueryParams: map[string]string{
+				"parameters.target.service": "payment-service",
+			},
+		}
+		output, err := handlers.SearchRules(ctx, input)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, output)
+		assert.Equal(t, expectedRules, output.Body)
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("SearchByCombinedFilters", func(t *testing.T) {
+		expectedRules := []*database.Rule{
+			{ID: "1", TemplateName: "demo"},
+		}
+
+		expectedFilter := database.RuleFilter{
+			TemplateName: "demo",
+			Parameters: map[string]string{
+				"parameters.target.service":     "api",
+				"parameters.target.environment": "production",
+			},
+		}
+		mockStore.On("SearchRules", ctx, expectedFilter).Return(expectedRules, nil).Once()
+
+		input := &SearchRulesInput{
+			QueryParams: map[string]string{
+				"templateName":                  "demo",
+				"parameters.target.service":     "api",
+				"parameters.target.environment": "production",
+			},
+		}
+		output, err := handlers.SearchRules(ctx, input)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, output)
+		assert.Equal(t, expectedRules, output.Body)
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("SearchNoResults", func(t *testing.T) {
+		expectedFilter := database.RuleFilter{
+			TemplateName: "",
+			Parameters: map[string]string{
+				"parameters.target.service": "non-existent",
+			},
+		}
+		mockStore.On("SearchRules", ctx, expectedFilter).Return([]*database.Rule{}, nil).Once()
+
+		input := &SearchRulesInput{
+			QueryParams: map[string]string{
+				"parameters.target.service": "non-existent",
+			},
+		}
+		output, err := handlers.SearchRules(ctx, input)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, output)
+		assert.Empty(t, output.Body)
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("SearchEmptyQuery", func(t *testing.T) {
+		expectedFilter := database.RuleFilter{
+			TemplateName: "",
+			Parameters:   map[string]string{},
+		}
+		allRules := []*database.Rule{
+			{ID: "1", TemplateName: "demo"},
+			{ID: "2", TemplateName: "openshift"},
+		}
+		mockStore.On("SearchRules", ctx, expectedFilter).Return(allRules, nil).Once()
+
+		input := &SearchRulesInput{
+			QueryParams: map[string]string{},
+		}
+		output, err := handlers.SearchRules(ctx, input)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, output)
+		assert.Equal(t, allRules, output.Body)
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("StoreError", func(t *testing.T) {
+		expectedFilter := database.RuleFilter{
+			TemplateName: "demo",
+			Parameters:   map[string]string{},
+		}
+		mockStore.On("SearchRules", ctx, expectedFilter).Return(([]*database.Rule)(nil), errors.New("database error")).Once()
+
+		input := &SearchRulesInput{
+			QueryParams: map[string]string{"templateName": "demo"},
+		}
+		output, err := handlers.SearchRules(ctx, input)
+
+		assert.Error(t, err)
+		assert.Nil(t, output)
+		mockStore.AssertExpectations(t)
+	})
+}

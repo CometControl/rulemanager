@@ -73,6 +73,15 @@ func NewRuleHandlers(api huma.API, rs database.RuleStore, svc *rules.Service) {
 		Tags:        []string{"Rules"},
 	}, h.DeleteRule)
 
+	huma.Register(api, huma.Operation{
+		OperationID: "search-rules",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/rules/search",
+		Summary:     "Search rules",
+		Description: "Search rules by template and parameters (e.g., ?template=demo&target.service=api&target.environment=prod).",
+		Tags:        []string{"Rules"},
+	}, h.SearchRules)
+
 	h.RegisterVMAlertEndpoint(api)
 }
 

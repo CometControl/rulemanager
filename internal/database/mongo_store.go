@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -16,6 +17,47 @@ type MongoStore struct {
 	database      *mongo.Database
 	rulesColl     *mongo.Collection
 	templatesColl *mongo.Collection
+}
+
+type mongoRule struct {
+	ID           string    `bson:"_id,omitempty"`
+	TemplateName string    `bson:"templateName"`
+	Parameters   bson.M    `bson:"parameters"`
+	For          string    `bson:"for,omitempty"`
+	CreatedAt    time.Time `bson:"createdAt"`
+	UpdatedAt    time.Time `bson:"updatedAt"`
+}
+
+func toMongoRule(r *Rule) (*mongoRule, error) {
+	var params bson.M
+	if len(r.Parameters) > 0 {
+		if err := json.Unmarshal(r.Parameters, &params); err != nil {
+			return nil, err
+		}
+	}
+	return &mongoRule{
+		ID:           r.ID,
+		TemplateName: r.TemplateName,
+		Parameters:   params,
+		For:          r.For,
+		CreatedAt:    r.CreatedAt,
+		UpdatedAt:    r.UpdatedAt,
+	}, nil
+}
+
+func fromMongoRule(mr *mongoRule) (*Rule, error) {
+	params, err := json.Marshal(mr.Parameters)
+	if err != nil {
+		return nil, err
+	}
+	return &Rule{
+		ID:           mr.ID,
+		TemplateName: mr.TemplateName,
+		Parameters:   params,
+		For:          mr.For,
+		CreatedAt:    mr.CreatedAt,
+		UpdatedAt:    mr.UpdatedAt,
+	}, nil
 }
 
 // NewMongoStore creates a new MongoStore with the given connection string and database name.
@@ -56,21 +98,25 @@ func (s *MongoStore) CreateRule(ctx context.Context, rule *Rule) error {
 	}
 	rule.UpdatedAt = time.Now()
 
-	_, err := s.rulesColl.InsertOne(ctx, rule)
+	mr, err := toMongoRule(rule)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.rulesColl.InsertOne(ctx, mr)
 	return err
 }
 
 // GetRule retrieves a rule by ID from MongoDB.
 func (s *MongoStore) GetRule(ctx context.Context, id string) (*Rule, error) {
-	var rule Rule
-	err := s.rulesColl.FindOne(ctx, bson.M{"_id": id}).Decode(&rule)
-	if err != nil {
+	var mr mongoRule
+	if err := s.rulesColl.FindOne(ctx, bson.M{"_id": id}).Decode(&mr); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, errors.New("rule not found")
 		}
 		return nil, err
 	}
-	return &rule, nil
+	return fromMongoRule(&mr)
 }
 
 // ListRules retrieves a paginated list of rules from MongoDB.
@@ -83,8 +129,50 @@ func (s *MongoStore) ListRules(ctx context.Context, offset, limit int) ([]*Rule,
 	defer cursor.Close(ctx)
 
 	var rules []*Rule
-	if err := cursor.All(ctx, &rules); err != nil {
+	for cursor.Next(ctx) {
+		var mr mongoRule
+		if err := cursor.Decode(&mr); err != nil {
+			return nil, err
+		}
+		rule, err := fromMongoRule(&mr)
+		if err != nil {
+			return nil, err
+		}
+		rules = append(rules, rule)
+	}
+	return rules, nil
+}
+
+// SearchRules searches for rules matching the given filter.
+func (s *MongoStore) SearchRules(ctx context.Context, filter RuleFilter) ([]*Rule, error) {
+	query := bson.M{}
+
+	if filter.TemplateName != "" {
+		query["templateName"] = filter.TemplateName
+	}
+
+	for key, value := range filter.Parameters {
+		// Use the key exactly as provided - no automatic prefixing
+		query[key] = value
+	}
+
+	cursor, err := s.rulesColl.Find(ctx, query)
+	if err != nil {
 		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var rules []*Rule
+	for cursor.Next(ctx) {
+		var mr mongoRule
+		if err := cursor.Decode(&mr); err != nil {
+			return nil, err
+		}
+		rule, err := fromMongoRule(&mr)
+		if err != nil {
+			return nil, err
+		}
+		rules = append(rules, rule)
 	}
 	return rules, nil
 }
@@ -92,11 +180,16 @@ func (s *MongoStore) ListRules(ctx context.Context, offset, limit int) ([]*Rule,
 // UpdateRule updates an existing rule in MongoDB.
 func (s *MongoStore) UpdateRule(ctx context.Context, id string, rule *Rule) error {
 	rule.UpdatedAt = time.Now()
+	mr, err := toMongoRule(rule)
+	if err != nil {
+		return err
+	}
+
 	update := bson.M{
 		"$set": bson.M{
-			"templateName": rule.TemplateName,
-			"parameters":   rule.Parameters,
-			"updatedAt":    rule.UpdatedAt,
+			"templateName": mr.TemplateName,
+			"parameters":   mr.Parameters,
+			"updatedAt":    mr.UpdatedAt,
 		},
 	}
 	result, err := s.rulesColl.UpdateOne(ctx, bson.M{"_id": id}, update)

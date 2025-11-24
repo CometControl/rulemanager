@@ -23,6 +23,15 @@ type RuleStore interface {
 	ListRules(ctx context.Context, offset, limit int) ([]*Rule, error)
 	UpdateRule(ctx context.Context, id string, rule *Rule) error
 	DeleteRule(ctx context.Context, id string) error
+	SearchRules(ctx context.Context, filter RuleFilter) ([]*Rule, error)
+}
+
+// RuleFilter defines the criteria for searching rules.
+type RuleFilter struct {
+	TemplateName string
+	// Parameters allows filtering by specific parameter fields.
+	// Keys should be dot-separated paths (e.g. "target.namespace").
+	Parameters map[string]string
 }
 
 // TemplateProvider defines the interface for retrieving rule templates.

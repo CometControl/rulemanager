@@ -136,6 +136,39 @@ func TestMongoStore_Rules(t *testing.T) {
 		assert.Error(t, err)
 		assert.Equal(t, "rule not found", err.Error())
 	})
+
+	t.Run("SearchRules", func(t *testing.T) {
+		// Create some rules for searching
+		r1 := &Rule{TemplateName: "search-1", Parameters: json.RawMessage(`{"target": {"ns": "a"}}`)}
+		r2 := &Rule{TemplateName: "search-1", Parameters: json.RawMessage(`{"target": {"ns": "b"}}`)}
+		r3 := &Rule{TemplateName: "search-2", Parameters: json.RawMessage(`{"target": {"ns": "a"}}`)}
+
+		require.NoError(t, store.CreateRule(ctx, r1))
+		require.NoError(t, store.CreateRule(ctx, r2))
+		require.NoError(t, store.CreateRule(ctx, r3))
+
+		// Search by template
+		filter := RuleFilter{TemplateName: "search-1"}
+		rules, err := store.SearchRules(ctx, filter)
+		require.NoError(t, err)
+		assert.Len(t, rules, 2)
+
+		// Search by parameter (using explicit MongoDB field name)
+		filter = RuleFilter{Parameters: map[string]string{"parameters.target.ns": "a"}}
+		rules, err = store.SearchRules(ctx, filter)
+		require.NoError(t, err)
+		assert.Len(t, rules, 2)
+
+		// Search by both
+		filter = RuleFilter{
+			TemplateName: "search-1",
+			Parameters:   map[string]string{"parameters.target.ns": "a"},
+		}
+		rules, err = store.SearchRules(ctx, filter)
+		require.NoError(t, err)
+		assert.Len(t, rules, 1)
+		assert.Equal(t, r1.ID, rules[0].ID)
+	})
 }
 
 func TestMongoStore_Templates(t *testing.T) {

@@ -167,6 +167,103 @@ func (s *FileStore) ListRules(ctx context.Context, limit, offset int) ([]*Rule, 
 	return rules[offset:end], nil
 }
 
+// SearchRules searches for rules matching the given filter.
+func (s *FileStore) SearchRules(ctx context.Context, filter RuleFilter) ([]*Rule, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var rules []*Rule
+	dir := filepath.Join(s.basePath, "rules")
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			continue
+		}
+
+		var rule Rule
+		if err := json.Unmarshal(data, &rule); err != nil {
+			continue
+		}
+
+		if s.matchesFilter(&rule, filter) {
+			rules = append(rules, &rule)
+		}
+	}
+
+	return rules, nil
+}
+
+func (s *FileStore) matchesFilter(rule *Rule, filter RuleFilter) bool {
+	if filter.TemplateName != "" && rule.TemplateName != filter.TemplateName {
+		return false
+	}
+
+	for key, value := range filter.Parameters {
+		// Flatten parameters to check for nested keys
+		// This is a simple implementation, might need optimization for deep nesting if frequent
+		// For now, we'll just unmarshal to map and traverse
+		var params map[string]interface{}
+		if err := json.Unmarshal(rule.Parameters, &params); err != nil {
+			return false
+		}
+
+		if !s.checkNestedValue(params, key, value) {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *FileStore) checkNestedValue(data map[string]interface{}, keyPath string, expectedValue string) bool {
+	keys := splitKeyPath(keyPath)
+	current := data
+
+	for i, key := range keys {
+		val, ok := current[key]
+		if !ok {
+			return false
+		}
+
+		if i == len(keys)-1 {
+			// Last key, check value
+			return fmt.Sprintf("%v", val) == expectedValue
+		}
+
+		// Navigate deeper
+		if nextMap, ok := val.(map[string]interface{}); ok {
+			current = nextMap
+		} else {
+			return false
+		}
+	}
+	return false
+}
+
+func splitKeyPath(path string) []string {
+	// Simple split by dot, assuming no dots in keys
+	// In a real scenario, might need more robust parsing
+	var keys []string
+	start := 0
+	for i := 0; i < len(path); i++ {
+		if path[i] == '.' {
+			keys = append(keys, path[start:i])
+			start = i + 1
+		}
+	}
+	keys = append(keys, path[start:])
+	return keys
+}
+
 // --- TemplateProvider Implementation ---
 
 // Templates are stored as JSON files: templates/{name}_{type}.json

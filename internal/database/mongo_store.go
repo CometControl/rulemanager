@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -234,6 +235,32 @@ func (s *MongoStore) GetSchema(ctx context.Context, name string) (string, error)
 		return "", err
 	}
 	return doc.Content, nil
+}
+
+// ListSchemas retrieves all schemas from MongoDB.
+func (s *MongoStore) ListSchemas(ctx context.Context) ([]*Schema, error) {
+	cursor, err := s.templatesColl.Find(ctx, bson.M{"type": "schema"})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var schemas []*Schema
+	for cursor.Next(ctx) {
+		var doc templateDoc
+		if err := cursor.Decode(&doc); err != nil {
+			return nil, err
+		}
+
+		// ID is "schema:name", strip prefix
+		name := strings.TrimPrefix(doc.ID, "schema:")
+
+		schemas = append(schemas, &Schema{
+			Name:   name,
+			Schema: json.RawMessage(doc.Content),
+		})
+	}
+	return schemas, nil
 }
 
 // GetTemplate retrieves a template by name from MongoDB.

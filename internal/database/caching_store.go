@@ -60,6 +60,11 @@ func (c *CachingTemplateProvider) GetTemplate(ctx context.Context, name string) 
 	return tmpl, nil
 }
 
+// ListSchemas retrieves all schemas from the provider.
+func (c *CachingTemplateProvider) ListSchemas(ctx context.Context) ([]*Schema, error) {
+	return c.provider.ListSchemas(ctx)
+}
+
 // InvalidateSchema removes a schema from the cache.
 func (c *CachingTemplateProvider) InvalidateSchema(name string) {
 	c.schemas.Delete(name)
@@ -76,31 +81,23 @@ func (c *CachingTemplateProvider) InvalidateTemplate(name string) {
 func (c *CachingTemplateProvider) CreateSchema(ctx context.Context, name, content string) error {
 	// Invalidate cache to ensure fresh data on next read
 	c.InvalidateSchema(name)
-	return c.provider.(interface {
-		CreateSchema(ctx context.Context, name, content string) error
-	}).CreateSchema(ctx, name, content)
+	return c.provider.CreateSchema(ctx, name, content)
 }
 
 // CreateTemplate creates a new template and invalidates the cache.
 func (c *CachingTemplateProvider) CreateTemplate(ctx context.Context, name, content string) error {
 	c.InvalidateTemplate(name)
-	return c.provider.(interface {
-		CreateTemplate(ctx context.Context, name, content string) error
-	}).CreateTemplate(ctx, name, content)
+	return c.provider.CreateTemplate(ctx, name, content)
 }
 
 // DeleteSchema deletes a schema and invalidates the cache.
 func (c *CachingTemplateProvider) DeleteSchema(ctx context.Context, name string) error {
 	c.InvalidateSchema(name)
-	return c.provider.(interface {
-		DeleteSchema(ctx context.Context, name string) error
-	}).DeleteSchema(ctx, name)
+	return c.provider.DeleteSchema(ctx, name)
 }
 
 // DeleteTemplate deletes a template and invalidates the cache.
 func (c *CachingTemplateProvider) DeleteTemplate(ctx context.Context, name string) error {
 	c.InvalidateTemplate(name)
-	return c.provider.(interface {
-		DeleteTemplate(ctx context.Context, name string) error
-	}).DeleteTemplate(ctx, name)
+	return c.provider.DeleteTemplate(ctx, name)
 }

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"testing"
 
+	"rulemanager/internal/database"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -23,6 +25,11 @@ func (m *MockTemplateProvider) GetSchema(ctx context.Context, name string) (stri
 func (m *MockTemplateProvider) GetTemplate(ctx context.Context, name string) (string, error) {
 	args := m.Called(ctx, name)
 	return args.String(0), args.Error(1)
+}
+
+func (m *MockTemplateProvider) ListSchemas(ctx context.Context) ([]*database.Schema, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]*database.Schema), args.Error(1)
 }
 
 func (m *MockTemplateProvider) CreateSchema(ctx context.Context, name, content string) error {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -282,6 +283,49 @@ func (s *FileStore) GetTemplate(ctx context.Context, name string) (string, error
 // GetSchema retrieves a schema by name from the file store.
 func (s *FileStore) GetSchema(ctx context.Context, name string) (string, error) {
 	return s.readTemplateFile(name, "schema")
+}
+
+// ListSchemas retrieves all schemas from the file store.
+func (s *FileStore) ListSchemas(ctx context.Context) ([]*Schema, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var schemas []*Schema
+	dir := filepath.Join(s.basePath, "templates")
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []*Schema{}, nil
+		}
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), "_schema.json") {
+			continue
+		}
+
+		// Extract name from filename: name_schema.json
+		name := strings.TrimSuffix(entry.Name(), "_schema.json")
+
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			continue
+		}
+
+		var doc fileTemplateDoc
+		if err := json.Unmarshal(data, &doc); err != nil {
+			continue
+		}
+
+		schemas = append(schemas, &Schema{
+			Name:   name,
+			Schema: json.RawMessage(doc.Content),
+		})
+	}
+
+	return schemas, nil
 }
 
 // CreateTemplate saves a new template to the file store.

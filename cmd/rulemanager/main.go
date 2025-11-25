@@ -96,6 +96,17 @@ func main() {
 	api.NewRuleHandlers(apiInstance.Huma, ruleStore, ruleService)
 	api.NewTemplateHandlers(apiInstance.Huma, templateProvider, validator, ruleService)
 
+	// Enhance Documentation
+	docsDir := "./docs"
+	if _, err := os.Stat(docsDir); os.IsNotExist(err) {
+		// Try project root if running from cmd/rulemanager
+		docsDir = "../../docs"
+	}
+
+	if err := api.EnhanceDocumentation(apiInstance.Huma, templateProvider, docsDir); err != nil {
+		slog.Warn("Failed to enhance documentation", "error", err)
+	}
+
 	// 6. Start Server
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	slog.Info("Server listening", "address", addr)

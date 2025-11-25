@@ -44,6 +44,11 @@ func (m *MockTemplateProvider) DeleteTemplate(ctx context.Context, name string) 
 	return args.Error(0)
 }
 
+func (m *MockTemplateProvider) ListSchemas(ctx context.Context) ([]*Schema, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]*Schema), args.Error(1)
+}
+
 func TestCachingTemplateProvider_GetSchema(t *testing.T) {
 	mockProvider := new(MockTemplateProvider)
 	cachingProvider := NewCachingTemplateProvider(mockProvider)
@@ -112,6 +117,33 @@ func TestCachingTemplateProvider_GetTemplate(t *testing.T) {
 		assert.Error(t, err)
 		assert.Empty(t, result)
 		assert.Equal(t, "not found", err.Error())
+		mockProvider.AssertExpectations(t)
+	})
+}
+
+func TestCachingTemplateProvider_ListSchemas(t *testing.T) {
+	mockProvider := new(MockTemplateProvider)
+	cachingProvider := NewCachingTemplateProvider(mockProvider)
+	ctx := context.Background()
+
+	t.Run("Success", func(t *testing.T) {
+		expected := []*Schema{{Name: "test"}}
+		mockProvider.On("ListSchemas", ctx).Return(expected, nil).Once()
+
+		result, err := cachingProvider.ListSchemas(ctx)
+
+		assert.NoError(t, err)
+		assert.Equal(t, expected, result)
+		mockProvider.AssertExpectations(t)
+	})
+
+	t.Run("Error", func(t *testing.T) {
+		mockProvider.On("ListSchemas", ctx).Return([]*Schema{}, errors.New("list failed")).Once()
+
+		_, err := cachingProvider.ListSchemas(ctx)
+
+		assert.Error(t, err)
+		assert.Equal(t, "list failed", err.Error())
 		mockProvider.AssertExpectations(t)
 	})
 }

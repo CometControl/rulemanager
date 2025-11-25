@@ -34,10 +34,17 @@ type RuleFilter struct {
 	Parameters map[string]string
 }
 
+// Schema represents a rule schema definition.
+type Schema struct {
+	Name   string          `json:"name" bson:"name"`
+	Schema json.RawMessage `json:"schema" bson:"schema"`
+}
+
 // TemplateProvider defines the interface for retrieving rule templates.
 type TemplateProvider interface {
 	GetSchema(ctx context.Context, name string) (string, error)
 	GetTemplate(ctx context.Context, name string) (string, error)
+	ListSchemas(ctx context.Context) ([]*Schema, error)
 	CreateSchema(ctx context.Context, name, content string) error
 	CreateTemplate(ctx context.Context, name, content string) error
 	DeleteSchema(ctx context.Context, name string) error

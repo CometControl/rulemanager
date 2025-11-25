@@ -69,6 +69,10 @@ func (m *MockTemplateProvider) GetTemplate(ctx context.Context, name string) (st
 	args := m.Called(ctx, name)
 	return args.String(0), args.Error(1)
 }
+func (m *MockTemplateProvider) ListSchemas(ctx context.Context) ([]*database.Schema, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]*database.Schema), args.Error(1)
+}
 func (m *MockTemplateProvider) CreateSchema(ctx context.Context, name, content string) error {
 	args := m.Called(ctx, name, content)
 	return args.Error(0)

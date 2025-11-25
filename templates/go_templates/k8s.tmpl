@@ -1,35 +1,59 @@
 {{- $target := .target -}}
-{{- $rule := .rule -}}
-{{ if eq $rule.rule_type "cpu" }}
+{{- $common := .common -}}
+{{- range $rule := .rules }}
+{{- if eq $rule.rule_type "cpu" }}
 - alert: HighCPUUsage_{{ $target.workload }}
   expr: sum(rate(container_cpu_usage_seconds_total{namespace="{{ $target.namespace }}", pod=~"{{ $target.workload }}-.*"}[5m])) by (pod) {{ $rule.operator }} {{ $rule.threshold }}
   for: 5m
   labels:
-    severity: {{ $rule.severity }}
+    {{- if $common.severity }}
+    severity: {{ $common.severity }}
+    {{- end }}
     environment: {{ $target.environment }}
     namespace: {{ $target.namespace }}
-    {{- range $key, $value := $rule.labels }}
+    {{- range $key, $value := $common.labels }}
     {{ $key }}: {{ $value }}
     {{- end }}
   annotations:
     summary: "High CPU usage for {{ $target.workload }}"
-    {{- range $key, $value := $rule.annotations }}
+    {{- range $key, $value := $common.annotations }}
     {{ $key }}: {{ $value }}
     {{- end }}
-{{ else if eq $rule.rule_type "ram" }}
+{{- else if eq $rule.rule_type "ram" }}
 - alert: HighMemoryUsage_{{ $target.workload }}
   expr: sum(container_memory_working_set_bytes{namespace="{{ $target.namespace }}", pod=~"{{ $target.workload }}-.*"}) by (pod) {{ $rule.operator }} {{ $rule.threshold }}
   for: 5m
   labels:
-    severity: {{ $rule.severity }}
+    {{- if $common.severity }}
+    severity: {{ $common.severity }}
+    {{- end }}
     environment: {{ $target.environment }}
     namespace: {{ $target.namespace }}
-    {{- range $key, $value := $rule.labels }}
+    {{- range $key, $value := $common.labels }}
     {{ $key }}: {{ $value }}
     {{- end }}
   annotations:
     summary: "High Memory usage for {{ $target.workload }}"
-    {{- range $key, $value := $rule.annotations }}
+    {{- range $key, $value := $common.annotations }}
     {{ $key }}: {{ $value }}
     {{- end }}
-{{ end }}
+{{- else if eq $rule.rule_type "service_up" }}
+- alert: ServiceDown_{{ $rule.service_name }}
+  expr: up{job="{{ $rule.service_name }}", namespace="{{ $target.namespace }}"} == 0
+  for: 1m
+  labels:
+    {{- if $common.severity }}
+    severity: {{ $common.severity }}
+    {{- end }}
+    environment: {{ $target.environment }}
+    namespace: {{ $target.namespace }}
+    {{- range $key, $value := $common.labels }}
+    {{ $key }}: {{ $value }}
+    {{- end }}
+  annotations:
+    summary: "Service {{ $rule.service_name }} is down"
+    {{- range $key, $value := $common.annotations }}
+    {{ $key }}: {{ $value }}
+    {{- end }}
+{{- end }}
+{{- end }}

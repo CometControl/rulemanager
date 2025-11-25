@@ -58,10 +58,16 @@ Once the user fills out the form, you can create one or more rules in a single r
       "namespace": "payment-service",
       "workload": "payment-api"
     },
+    "common": {
+      "severity": "warning",
+      "labels": {
+        "team": "payments"
+      }
+    },
     "rules": [
-      {"rule_type": "cpu", "severity": "warning", "operator": ">", "threshold": 0.7},
-      {"rule_type": "cpu", "severity": "critical", "operator": ">", "threshold": 0.9},
-      {"rule_type": "ram", "severity": "critical", "operator": ">", "threshold": 2000000000}
+      {"rule_type": "cpu", "operator": ">", "threshold": 0.7},
+      {"rule_type": "cpu", "operator": ">", "threshold": 0.9, "common": {"severity": "critical"}},
+      {"rule_type": "ram", "operator": ">", "threshold": 2000000000, "common": {"severity": "critical"}}
     ]
   }
 }
@@ -96,14 +102,18 @@ This creates 3 separate rule entries, each independently manageable.
         ```json
         {
           "parameters": {
-            "rule": {
-              "threshold": 0.8,
+            "common": {
               "severity": "critical"
-            }
+            },
+            "rules": [
+              {
+                "threshold": 0.85
+              }
+            ]
           }
         }
         ```
-        This will update `threshold` and `severity` while preserving other fields (like `target` or other `rule` properties).
+        This will update `severity` in common and `threshold` in the rule, while preserving other fields. Note that updating the `rules` array via partial update merges by index/key depending on the merge strategy, but for arrays it typically replaces or appends. For precise updates, it's safer to provide the full rule definition for the specific rule being updated.
         
 -   **Delete Rule**: `DELETE /api/v1/rules/{id}`
     -   **Response**: 204 No Content.

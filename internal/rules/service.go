@@ -87,18 +87,83 @@ func (s *Service) ValidateRule(ctx context.Context, templateName string, paramet
 		return err
 	}
 
+	// 1. Execute Global Pipelines
 	var schemaObj struct {
 		Datasource *DatasourceConfig `json:"datasource"`
 		Pipelines  []PipelineStep    `json:"pipelines"`
+		Properties struct {
+			Rules struct {
+				Items struct {
+					OneOf []struct {
+						Properties struct {
+							RuleType struct {
+								Const string `json:"const"`
+							} `json:"rule_type"`
+						} `json:"properties"`
+						Pipelines []PipelineStep `json:"pipelines"`
+					} `json:"oneOf"`
+				} `json:"items"`
+			} `json:"rules"`
+		} `json:"properties"`
 	}
 	if err := json.Unmarshal([]byte(schemaStr), &schemaObj); err != nil {
 		return fmt.Errorf("failed to parse schema for pipelines: %w", err)
 	}
 
-	// Execute any configured pipelines
+	// Execute global pipelines
 	if len(schemaObj.Pipelines) > 0 {
 		if err := s.pipelineProcessor.Execute(ctx, schemaObj.Pipelines, schemaObj.Datasource, parameters); err != nil {
 			return err
+		}
+	}
+
+	// 2. Execute Per-Rule Pipelines
+	var paramsObj struct {
+		Rules []map[string]interface{} `json:"rules"`
+	}
+	if err := json.Unmarshal(parameters, &paramsObj); err != nil {
+		return fmt.Errorf("failed to parse parameters for rules: %w", err)
+	}
+
+	// Map rule types to their schema definitions (containing pipelines)
+	rulePipelines := make(map[string][]PipelineStep)
+	for _, option := range schemaObj.Properties.Rules.Items.OneOf {
+		if option.Properties.RuleType.Const != "" && len(option.Pipelines) > 0 {
+			rulePipelines[option.Properties.RuleType.Const] = option.Pipelines
+		}
+	}
+
+	// Iterate over user rules and execute corresponding pipelines
+	for i, rule := range paramsObj.Rules {
+		ruleType, ok := rule["rule_type"].(string)
+		if !ok {
+			continue // Should be caught by schema validation, but safe to skip
+		}
+
+		if pipelines, exists := rulePipelines[ruleType]; exists {
+			// Create a merged context for the pipeline: Root Params + Rule Params
+			// We re-marshal the root parameters to a map to merge
+			var rootParams map[string]interface{}
+			if err := json.Unmarshal(parameters, &rootParams); err != nil {
+				return err
+			}
+
+			// Merge rule properties into root params (overwriting if collision, though structure usually differs)
+			// Actually, better to keep them separate or just rely on the fact that templates access what they need.
+			// If we merge `rule` into root, `threshold` becomes top-level.
+			// Let's merge rule properties into the root map so {{ .threshold }} works if the pipeline expects it.
+			for k, v := range rule {
+				rootParams[k] = v
+			}
+
+			mergedParams, err := json.Marshal(rootParams)
+			if err != nil {
+				return fmt.Errorf("failed to marshal merged parameters for rule %d: %w", i, err)
+			}
+
+			if err := s.pipelineProcessor.Execute(ctx, pipelines, schemaObj.Datasource, mergedParams); err != nil {
+				return fmt.Errorf("pipeline failed for rule %d (%s): %w", i, ruleType, err)
+			}
 		}
 	}
 

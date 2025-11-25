@@ -57,6 +57,7 @@ func NewPipelineProcessor() *PipelineProcessor {
 	}
 	// Register built-in runners
 	p.RegisterRunner("validate_metric_exists", &ValidateMetricExistsRunner{})
+	p.RegisterRunner("dummy_always_pass", &DummyAlwaysPassRunner{})
 	return p
 }
 
@@ -233,4 +234,12 @@ func renderString(tmplStr string, data interface{}) (string, error) {
 		return "", err
 	}
 	return buf.String(), nil
+}
+
+// DummyAlwaysPassRunner is a test runner that always succeeds.
+type DummyAlwaysPassRunner struct{}
+
+// Run always returns nil (success).
+func (r *DummyAlwaysPassRunner) Run(ctx context.Context, datasource *DatasourceConfig, ruleParams json.RawMessage, stepParams json.RawMessage) error {
+	return nil
 }

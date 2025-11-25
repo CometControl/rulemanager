@@ -33,82 +33,71 @@ The **Schema** defines the "contract" for the rule. It is a standard [JSON Schem
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema",
-  "title": "k8s Monitoring Rule",
+  "title": "K8s Monitoring Rule",
   "type": "object",
   "properties": {
     "target": {
       "type": "object",
       "properties": {
-        "environment": {
-          "type": "string",
-          "description": "The deployment environment (e.g., production, staging)"
-        },
-        "namespace": {
-          "type": "string",
-          "description": "The k8s namespace"
-        },
-        "workload": {
-          "type": "string",
-          "description": "The workload name (e.g., deployment name)"
-        }
+        "environment": { "type": "string" },
+        "namespace": { "type": "string" },
+        "workload": { "type": "string" }
       },
-      "required": ["environment", "namespace", "workload"],
-      "description": "The target entity for the rules"
+      "required": ["environment", "namespace", "workload"]
     },
-    "rule": {
+    "common": {
       "type": "object",
       "properties": {
-        "rule_type": {
-          "type": "string",
-          "enum": ["cpu", "ram"],
-          "description": "The type of resource to monitor"
-        },
-        "severity": {
-          "type": "string",
-          "enum": ["critical", "warning", "info"],
-          "description": "The severity of the alert"
-        },
-        "operator": {
-          "type": "string",
-          "enum": [">", "<", ">=", "<=", "==", "!="],
-          "description": "The comparison operator"
-        },
-        "threshold": {
-          "type": "number",
-          "description": "The threshold value for the alert"
-        },
-        "labels": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
+        "severity": { "type": "string", "enum": ["critical", "warning", "info"] },
+        "labels": { "type": "object", "additionalProperties": { "type": "string" } },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "rule_type": { "const": "cpu" },
+              "operator": { "type": "string", "enum": [">", "<"] },
+              "threshold": { "type": "number" }
+            },
+            "required": ["rule_type", "operator", "threshold"],
+            "pipelines": [
+              {
+                "name": "validate_cpu_metric",
+                "type": "validate_metric_exists",
+                "parameters": { "metric_name": "container_cpu_usage_seconds_total" }
+              }
+            ]
           },
-          "description": "Additional labels to add to the alert"
-        },
-        "annotations": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Additional annotations to add to the alert"
-        }
-      },
-      "required": ["rule_type", "severity", "operator", "threshold"],
-      "description": "The rule to apply to the target"
+          {
+            "type": "object",
+            "properties": {
+              "rule_type": { "const": "service_up" },
+              "service_name": { "type": "string" }
+            },
+            "required": ["rule_type", "service_name"],
+            "pipelines": [
+              {
+                "name": "validate_service_up_metric",
+                "type": "validate_metric_exists",
+                "parameters": { "metric_name": "up" }
+              }
+            ]
+          }
+        ]
+      }
     }
   },
-  "required": ["target", "rule"],
-  "datasource": {
-    "type": "prometheus",
-    "url": "http://localhost:9090"
-  },
+  "required": ["target", "rules"],
   "pipelines": [
     {
       "name": "validate_namespace_metrics",
       "type": "validate_metric_exists",
-      "parameters": {
-        "metric_name": "kube_namespace_status_phase",
-        "labels": "{namespace=\"{{ .target.namespace }}\"}"
-      }
+      "parameters": { "metric_name": "kube_namespace_status_phase" }
     }
   ]
 }
@@ -126,40 +115,47 @@ The **Template** defines how the validated parameters are transformed into the f
 **Example Template Snippet (from `k8s.tmpl`):**
 ```yaml
 {{- $target := .target -}}
-{{- $rule := .rule -}}
+{{- $common := .common -}}
+{{- range .rules }}
+{{- $rule := . }}
 {{ if eq $rule.rule_type "cpu" }}
 - alert: HighCPUUsage_{{ $target.workload }}
   expr: sum(rate(container_cpu_usage_seconds_total{namespace="{{ $target.namespace }}", pod=~"{{ $target.workload }}-.*"}[5m])) by (pod) {{ $rule.operator }} {{ $rule.threshold }}
   for: 5m
   labels:
-    severity: {{ $rule.severity }}
+    {{- if $common.severity }}
+    severity: {{ $common.severity }}
+    {{- end }}
     environment: {{ $target.environment }}
     namespace: {{ $target.namespace }}
-    {{- range $key, $value := $rule.labels }}
+    {{- range $key, $value := $common.labels }}
     {{ $key }}: {{ $value }}
     {{- end }}
   annotations:
     summary: "High CPU usage for {{ $target.workload }}"
-    {{- range $key, $value := $rule.annotations }}
+    {{- range $key, $value := $common.annotations }}
     {{ $key }}: {{ $value }}
     {{- end }}
-{{ else if eq $rule.rule_type "ram" }}
-- alert: HighMemoryUsage_{{ $target.workload }}
-  expr: sum(container_memory_working_set_bytes{namespace="{{ $target.namespace }}", pod=~"{{ $target.workload }}-.*"}) by (pod) {{ $rule.operator }} {{ $rule.threshold }}
-  for: 5m
+{{ else if eq $rule.rule_type "service_up" }}
+- alert: ServiceDown_{{ $rule.service_name }}
+  expr: up{job="{{ $rule.service_name }}", namespace="{{ $target.namespace }}"} == 0
+  for: 1m
   labels:
-    severity: {{ $rule.severity }}
+    {{- if $common.severity }}
+    severity: {{ $common.severity }}
+    {{- end }}
     environment: {{ $target.environment }}
     namespace: {{ $target.namespace }}
-    {{- range $key, $value := $rule.labels }}
+    {{- range $key, $value := $common.labels }}
     {{ $key }}: {{ $value }}
     {{- end }}
   annotations:
-    summary: "High Memory usage for {{ $target.workload }}"
-    {{- range $key, $value := $rule.annotations }}
+    summary: "Service {{ $rule.service_name }} is down"
+    {{- range $key, $value := $common.annotations }}
     {{ $key }}: {{ $value }}
     {{- end }}
 {{ end }}
+{{- end }}
 ```
 
 ### 3. The Workflow
@@ -224,18 +220,21 @@ curl -X POST http://localhost:8080/api/v1/rules \
         "namespace": "payment-service",
         "workload": "payment-api"
       },
+      "common": {
+        "severity": "warning",
+        "labels": {
+          "team": "payments"
+        }
+      },
       "rules": [
         {
           "rule_type": "cpu",
-          "severity": "warning",
           "operator": ">",
           "threshold": 0.8
         },
         {
-          "rule_type": "ram",
-          "severity": "critical",
-          "operator": ">",
-          "threshold": 2147483648
+          "rule_type": "service_up",
+          "service_name": "payment-api"
         }
       ]
     }

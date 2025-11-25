@@ -26,17 +26,9 @@
             ],
             "description": "The target entity for the rules"
         },
-        "rule": {
+        "common": {
             "type": "object",
             "properties": {
-                "rule_type": {
-                    "type": "string",
-                    "enum": [
-                        "cpu",
-                        "ram"
-                    ],
-                    "description": "The type of resource to monitor"
-                },
                 "severity": {
                     "type": "string",
                     "enum": [
@@ -45,22 +37,6 @@
                         "info"
                     ],
                     "description": "The severity of the alert"
-                },
-                "operator": {
-                    "type": "string",
-                    "enum": [
-                        ">",
-                        "<",
-                        ">=",
-                        "<=",
-                        "==",
-                        "!="
-                    ],
-                    "description": "The comparison operator"
-                },
-                "threshold": {
-                    "type": "number",
-                    "description": "The threshold value for the alert"
                 },
                 "labels": {
                     "type": "object",
@@ -77,18 +53,114 @@
                     "description": "Additional annotations to add to the alert"
                 }
             },
-            "required": [
-                "rule_type",
-                "severity",
-                "operator",
-                "threshold"
-            ],
-            "description": "The rule to apply to the target"
+            "description": "Common properties shared by all rules"
+        },
+        "rules": {
+            "type": "array",
+            "items": {
+                "oneOf": [
+                    {
+                        "type": "object",
+                        "properties": {
+                            "rule_type": {
+                                "const": "cpu",
+                                "description": "CPU usage monitoring"
+                            },
+                            "operator": {
+                                "type": "string",
+                                "enum": [
+                                    ">",
+                                    "<",
+                                    ">=",
+                                    "<=",
+                                    "==",
+                                    "!="
+                                ],
+                                "description": "The comparison operator"
+                            },
+                            "threshold": {
+                                "type": "number",
+                                "description": "The threshold value for the alert"
+                            }
+                        },
+                        "required": [
+                            "rule_type",
+                            "operator",
+                            "threshold"
+                        ],
+                        "additionalProperties": false,
+                        "pipelines": [
+                            {
+                                "name": "test_cpu_pipeline",
+                                "type": "dummy_always_pass",
+                                "parameters": {}
+                            }
+                        ]
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "rule_type": {
+                                "const": "ram",
+                                "description": "Memory usage monitoring"
+                            },
+                            "operator": {
+                                "type": "string",
+                                "enum": [
+                                    ">",
+                                    "<",
+                                    ">=",
+                                    "<=",
+                                    "==",
+                                    "!="
+                                ],
+                                "description": "The comparison operator"
+                            },
+                            "threshold": {
+                                "type": "number",
+                                "description": "The threshold value for the alert"
+                            }
+                        },
+                        "required": [
+                            "rule_type",
+                            "operator",
+                            "threshold"
+                        ],
+                        "additionalProperties": false
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "rule_type": {
+                                "const": "service_up",
+                                "description": "Service availability monitoring"
+                            },
+                            "service_name": {
+                                "type": "string",
+                                "description": "The name of the service to check"
+                            }
+                        },
+                        "required": [
+                            "rule_type",
+                            "service_name"
+                        ],
+                        "additionalProperties": false,
+                        "pipelines": [
+                            {
+                                "name": "test_service_pipeline",
+                                "type": "dummy_always_pass",
+                                "parameters": {}
+                            }
+                        ]
+                    }
+                ]
+            },
+            "description": "List of rules to apply"
         }
     },
     "required": [
         "target",
-        "rule"
+        "rules"
     ],
     "datasource": {
         "type": "prometheus",
@@ -96,12 +168,9 @@
     },
     "pipelines": [
         {
-            "name": "validate_namespace_metrics",
-            "type": "validate_metric_exists",
-            "parameters": {
-                "metric_name": "kube_namespace_status_phase",
-                "labels": "{namespace=\"{{ .target.namespace }}\"}"
-            }
+            "name": "test_global_pipeline",
+            "type": "dummy_always_pass",
+            "parameters": {}
         }
     ]
 }

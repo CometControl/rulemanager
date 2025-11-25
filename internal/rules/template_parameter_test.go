@@ -82,11 +82,15 @@ func TestTemplateParameters(t *testing.T) {
 					"namespace":   "backend",
 					"workload":    "api-server",
 				},
-				"rule": map[string]interface{}{
-					"rule_type": "cpu",
-					"severity":  "critical",
-					"operator":  ">",
-					"threshold": 0.9,
+				"common": map[string]interface{}{
+					"severity": "critical",
+				},
+				"rules": []map[string]interface{}{
+					{
+						"rule_type": "cpu",
+						"operator":  ">",
+						"threshold": 0.9,
+					},
 				},
 			},
 			wantErr: false,
@@ -104,11 +108,15 @@ func TestTemplateParameters(t *testing.T) {
 					"namespace":   "backend",
 					"workload":    "api-server",
 				},
-				"rule": map[string]interface{}{
-					"rule_type": "ram",
-					"severity":  "critical",
-					"operator":  ">",
-					"threshold": 2000000000,
+				"common": map[string]interface{}{
+					"severity": "critical",
+				},
+				"rules": []map[string]interface{}{
+					{
+						"rule_type": "ram",
+						"operator":  ">",
+						"threshold": 2000000000,
+					},
 				},
 			},
 			wantErr: false,
@@ -126,16 +134,20 @@ func TestTemplateParameters(t *testing.T) {
 					"namespace":   "backend",
 					"workload":    "api-server",
 				},
-				"rule": map[string]interface{}{
-					"rule_type": "cpu",
-					"severity":  "critical",
-					"operator":  ">",
-					"threshold": 0.9,
+				"common": map[string]interface{}{
+					"severity": "critical",
 					"labels": map[string]string{
 						"team": "platform",
 					},
 					"annotations": map[string]string{
 						"runbook": "http://runbook.com/api-server",
+					},
+				},
+				"rules": []map[string]interface{}{
+					{
+						"rule_type": "cpu",
+						"operator":  ">",
+						"threshold": 0.9,
 					},
 				},
 			},
@@ -149,11 +161,15 @@ func TestTemplateParameters(t *testing.T) {
 		{
 			name: "Missing Target",
 			params: map[string]interface{}{
-				"rule": map[string]interface{}{
-					"rule_type": "cpu",
-					"severity":  "critical",
-					"operator":  ">",
-					"threshold": 0.9,
+				"common": map[string]interface{}{
+					"severity": "critical",
+				},
+				"rules": []map[string]interface{}{
+					{
+						"rule_type": "cpu",
+						"operator":  ">",
+						"threshold": 0.9,
+					},
 				},
 			},
 			wantErr: true,

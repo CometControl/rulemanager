@@ -88,6 +88,7 @@ func NewRuleHandlers(api huma.API, rs database.RuleStore, svc *rules.Service) {
 // RuleCreationParams defines the expected structure for rule creation parameters.
 type RuleCreationParams struct {
 	Target json.RawMessage   `json:"target"`
+	Common json.RawMessage   `json:"common"`
 	Rules  []json.RawMessage `json:"rules"`
 }
 
@@ -170,13 +171,15 @@ func (h *RuleHandlers) CreateRule(ctx context.Context, input *CreateRuleInput) (
 
 	// Create a separate rule for each item in the rules array
 	for i, ruleItem := range params.Rules {
-		// Construct parameters for this single rule: {target, rule}
+		// Construct parameters for this single rule: {target, common, rules: [rule]}
 		singleRuleParams := struct {
-			Target json.RawMessage `json:"target"`
-			Rule   json.RawMessage `json:"rule"`
+			Target json.RawMessage   `json:"target"`
+			Common json.RawMessage   `json:"common,omitempty"`
+			Rules  []json.RawMessage `json:"rules"`
 		}{
 			Target: params.Target,
-			Rule:   ruleItem,
+			Common: params.Common,
+			Rules:  []json.RawMessage{ruleItem},
 		}
 
 		singleRuleJSON, err := json.Marshal(singleRuleParams)

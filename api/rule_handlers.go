@@ -100,6 +100,15 @@ func NewRuleHandlers(api huma.API, rs database.RuleStore, svc *rules.Service) {
 	}, h.PlanUpdateRule)
 
 	h.RegisterVMAlertEndpoint(api)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-options",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/rules/options",
+		Summary:     "Get dynamic options",
+		Description: "Get a list of valid options for a field based on the schema configuration and current form values.",
+		Tags:        []string{"Rules"},
+	}, h.GetOptions)
 }
 
 // RuleCreationParams defines the expected structure for rule creation parameters.
@@ -166,6 +175,22 @@ type DeleteRuleInput struct {
 
 type DeleteRuleOutput struct {
 	Status int
+}
+
+// OptionsRequest defines the request body for the options endpoint.
+type OptionsRequest struct {
+	Body struct {
+		TemplateName  string                 `json:"template_name" doc:"Name of the template"`
+		FieldPath     string                 `json:"field_path" doc:"Path to the field in the schema (e.g. target.namespace)"`
+		CurrentValues map[string]interface{} `json:"current_values" doc:"Current values of the form to resolve dependencies"`
+	}
+}
+
+// OptionsResponse defines the response body for the options endpoint.
+type OptionsResponse struct {
+	Body struct {
+		Options []string `json:"options" doc:"List of available options"`
+	}
 }
 
 // CreateRule creates one or more rules from a template using a 'rules' array parameter.
@@ -399,4 +424,17 @@ func (h *RuleHandlers) DeleteRule(ctx context.Context, input *DeleteRuleInput) (
 	}
 
 	return &DeleteRuleOutput{Status: http.StatusNoContent}, nil
+}
+
+// GetOptions resolves dynamic options for a field.
+func (h *RuleHandlers) GetOptions(ctx context.Context, input *OptionsRequest) (*OptionsResponse, error) {
+	options, err := h.ruleService.GetOptions(ctx, input.Body.TemplateName, input.Body.FieldPath, input.Body.CurrentValues)
+	if err != nil {
+		slog.Error("GetOptions: Failed to get options", "template", input.Body.TemplateName, "field", input.Body.FieldPath, "error", err)
+		return nil, huma.Error500InternalServerError(err.Error())
+	}
+
+	resp := &OptionsResponse{}
+	resp.Body.Options = options
+	return resp, nil
 }

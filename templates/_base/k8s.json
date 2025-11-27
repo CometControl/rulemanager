@@ -14,15 +14,35 @@
             "properties": {
                 "environment": {
                     "type": "string",
-                    "description": "The deployment environment (e.g., production, staging)"
+                    "description": "The deployment environment (e.g., production, staging)",
+                    "x-dynamic-options": {
+                        "type": "prometheus_query",
+                        "label": "environment",
+                        "match": "up",
+                        "dependencies": []
+                    }
                 },
                 "namespace": {
                     "type": "string",
-                    "description": "The K8s namespace"
+                    "description": "The K8s namespace",
+                    "x-dynamic-options": {
+                        "type": "prometheus_query",
+                        "label": "namespace",
+                        "match": "kube_namespace_created",
+                        "dependencies": []
+                    }
                 },
                 "workload": {
                     "type": "string",
-                    "description": "The workload name (e.g., deployment name)"
+                    "description": "The workload name (e.g., deployment name)",
+                    "x-dynamic-options": {
+                        "type": "prometheus_query",
+                        "label": "deployment",
+                        "match": "kube_deployment_created{namespace=\"{{.target.namespace}}\"}",
+                        "dependencies": [
+                            "target.namespace"
+                        ]
+                    }
                 }
             },
             "required": [

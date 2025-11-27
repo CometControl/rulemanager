@@ -458,34 +458,27 @@ func (s *Service) PlanRuleUpdate(ctx context.Context, id string, templateName st
 }
 
 // getValueByPath extracts a string value from a map using dot notation.
-// It handles arrays by taking the first element (e.g., "rules.rule_type" -> rules[0].rule_type).
+// When encountering an array (e.g., "rules.rule_type"), it accesses the first element.
 func getValueByPath(data map[string]interface{}, path string) (string, bool) {
 	parts := strings.Split(path, ".")
 	var current interface{} = data
 
 	for _, part := range parts {
-		if m, ok := current.(map[string]interface{}); ok {
-			current = m[part]
-		} else if arr, ok := current.([]interface{}); ok {
-			// If current is an array, we assume we want the first element's property
-			// But wait, the path "rules.rule_type" means "rules" -> "rule_type".
-			// If "rules" is an array, we need to step into the first element.
-			// But the loop is iterating over parts.
-			// If we are at "rules" (which is an array), we need to stay here?
-			// No, "rules" key in map gave us the array.
-			// The NEXT part "rule_type" should be looked up in the first element of that array.
-			if len(arr) > 0 {
-				current = arr[0]
-				// Now we need to look up 'part' in this new object
-				if m, ok := current.(map[string]interface{}); ok {
-					current = m[part]
-				} else {
-					return "", false
-				}
+		switch v := current.(type) {
+		case map[string]interface{}:
+			current = v[part]
+		case []interface{}:
+			// For arrays, use the first element and continue navigation
+			if len(v) == 0 {
+				return "", false
+			}
+			// Navigate into the first array element
+			if m, ok := v[0].(map[string]interface{}); ok {
+				current = m[part]
 			} else {
 				return "", false
 			}
-		} else {
+		default:
 			return "", false
 		}
 	}

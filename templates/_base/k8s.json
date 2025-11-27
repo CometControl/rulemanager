@@ -2,6 +2,12 @@
     "$schema": "http://json-schema.org/draft-07/schema",
     "title": "K8s Monitoring Rule",
     "type": "object",
+    "uniqueness_keys": [
+        "target",
+        "rules.rule_type",
+        "common.severity",
+        "rules.severity"
+    ],
     "properties": {
         "target": {
             "type": "object",

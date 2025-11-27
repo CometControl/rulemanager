@@ -118,7 +118,34 @@ This creates 3 separate rule entries, each independently manageable.
 -   **Delete Rule**: `DELETE /api/v1/rules/{id}`
     -   **Response**: 204 No Content.
 
-### 4. Integration with Monitoring
+### 4. Planning Changes (Uniqueness & Overrides)
+
+The Rule Manager enforces **Uniqueness Constraints** to prevent duplicate rules. These constraints are defined in the template schema (e.g., a rule might be unique by `target.namespace` + `rule_type`).
+
+To help you manage these constraints safely, the API provides "Plan" endpoints.
+
+#### Planning Creation
+Before creating a rule, you can check if it will conflict with or override an existing rule.
+
+-   **Plan Creation**: `POST /api/v1/rules/plan`
+    -   **Body**: Same as `POST /api/v1/rules`
+    -   **Response**:
+        -   `action`: `"create"` (safe to create) or `"update"` (will override existing rule).
+        -   `existing_rule`: Details of the rule that will be overridden (if any).
+        -   `reason`: Explanation of the action.
+
+#### Planning Updates
+When updating a rule, you might inadvertently change its parameters to values that conflict with *another* existing rule.
+
+-   **Plan Update**: `POST /api/v1/rules/{id}/plan`
+    -   **Body**: Same as `PUT /api/v1/rules/{id}`
+    -   **Response**:
+        -   `action`: `"update"` (safe to update) or `"conflict"` (violates uniqueness).
+        -   `reason`: Explanation of the conflict.
+
+**Note**: If you attempt a direct `PUT` that results in a conflict, the API will return a `409 Conflict` error.
+
+### 5. Integration with Monitoring
 
 The Rule Manager exposes an endpoint for the monitoring system (e.g., `vmalert`) to consume.
 

@@ -6,6 +6,8 @@ Rule Manager is a robust, Go-based service designed to manage alerting rules in 
 
 *   **Template-Based Rule Creation**: Generate complex Prometheus/VictoriaMetrics rules from simplified, user-friendly JSON templates.
 *   **Dynamic Template Management**: Create, update, and manage rule templates and their schemas via API without redeploying the service.
+*   **Template-Driven Uniqueness**: Define custom uniqueness constraints (e.g., `target.namespace` + `rule_type`) directly in the template schema to prevent duplicates or enable safe overrides.
+*   **Change Planning**: Simulate rule creation and updates with "Plan" endpoints to preview actions (Create, Update, Conflict) before committing changes.
 *   **Advanced Validation**:
     *   **JSON Schema**: Validates user input against strict schemas.
     *   **Pipeline Validation**: Executes custom validation steps (e.g., checking if a metric exists in the TSDB) before creating a rule.
@@ -27,6 +29,7 @@ The **Schema** defines the "contract" for the rule. It is a standard [JSON Schem
     *   Define required fields (e.g., `service`, `threshold`).
     *   Enforce data types (e.g., `threshold` must be a number).
     *   Set constraints (e.g., `severity` must be one of `critical`, `warning`, `info`).
+    *   **Uniqueness Keys**: Define which fields constitute a unique rule identity (e.g., `["target.namespace", "rules.rule_type"]`).
     *   **Pipelines**: Advanced validation logic (e.g., "check if metric X exists in Prometheus") can be embedded directly in the schema metadata.
 
 **Example Schema Snippet (from `k8s.json`):**
@@ -35,6 +38,7 @@ The **Schema** defines the "contract" for the rule. It is a standard [JSON Schem
   "$schema": "http://json-schema.org/draft-07/schema",
   "title": "K8s Monitoring Rule",
   "type": "object",
+  "uniqueness_keys": ["target", "rules.rule_type", "common.severity"],
   "properties": {
     "target": {
       "type": "object",
@@ -304,9 +308,11 @@ The API uses standard REST conventions and returns JSON responses.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/api/v1/rules` | Create one or more rules from a template |
+| `POST` | `/api/v1/rules/plan` | Plan rule creation (check for conflicts/overrides) |
 | `GET` | `/api/v1/rules` | List all rules (supports pagination) |
 | `GET` | `/api/v1/rules/{id}` | Get a specific rule by ID |
 | `PUT` | `/api/v1/rules/{id}` | Update a rule (supports partial updates) |
+| `POST` | `/api/v1/rules/{id}/plan` | Plan rule update (check for conflicts) |
 | `DELETE` | `/api/v1/rules/{id}` | Delete a rule |
 | `GET` | `/api/v1/rules/search` | Search rules by template and parameters |
 

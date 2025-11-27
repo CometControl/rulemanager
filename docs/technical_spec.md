@@ -35,7 +35,7 @@ type Rule struct {
 
 ### 2.2 Template
 Templates consist of two parts:
-1.  **JSON Schema**: Defines the input structure, validation rules, and pipeline steps.
+1.  **JSON Schema**: Defines the input structure, validation rules, pipeline steps, and **uniqueness keys**.
 2.  **Go Template**: Defines the output structure (Prometheus rule YAML).
 
 ## 3. API Specification
@@ -44,10 +44,16 @@ Templates consist of two parts:
 
 *   `POST /api/v1/rules`: Create a new rule.
     *   Body: `{ "templateName": "string", "parameters": { ... } }`
+*   `POST /api/v1/rules/plan`: Plan rule creation.
+    *   Body: Same as Create.
+    *   Returns: Action (create/update) and diff/reason.
 *   `GET /api/v1/rules`: List rules (pagination supported).
 *   `GET /api/v1/rules/search`: Search rules by template and parameters.
 *   `GET /api/v1/rules/{id}`: Get a specific rule.
 *   `PUT /api/v1/rules/{id}`: Update a rule.
+*   `POST /api/v1/rules/{id}/plan`: Plan rule update.
+    *   Body: Same as Update.
+    *   Returns: Action (update/conflict) and reason.
 *   `DELETE /api/v1/rules/{id}`: Delete a rule.
 *   `GET /api/v1/rules/vmalert`: Get all rules in `vmalert` YAML format.
 
@@ -65,7 +71,16 @@ The Pipeline Processor allows for dynamic, declarative validation logic.
 *   **Step Runners**:
     *   `validate_metric_exists`: Queries the configured datasource to ensure the metric exists.
 
-### 4.2 Caching Strategy
+### 4.2 Uniqueness & Conflict Resolution
+Uniqueness is enforced dynamically based on the `uniqueness_keys` defined in the Template Schema.
+*   **Definition**: A list of dot-notation paths (e.g., `["target.namespace", "rules.rule_type"]`).
+*   **Fallback**: If undefined, defaults to `["target", "rules.rule_type"]`.
+*   **Creation Logic**:
+    *   If a rule with matching keys exists: **Override** (Update) the existing rule.
+*   **Update Logic**:
+    *   If the updated parameters conflict with *another* rule (excluding self): **Reject** with `409 Conflict`.
+
+### 4.3 Caching Strategy
 *   **Templates**: Cached in-memory to reduce storage I/O. Refreshed on update.
 *   **vmalert Output**: The generated YAML for `vmalert` is cached and invalidated only when a rule is created, updated, or deleted.
 

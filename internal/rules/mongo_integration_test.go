@@ -48,7 +48,7 @@ func TestMongoIntegration_PerRulePipelines(t *testing.T) {
 	ctx := context.Background()
 
 	validator := validation.NewJSONSchemaValidator()
-	service := rules.NewService(store, validator)
+	service := rules.NewService(store, store, validator)
 
 	baseDir := "../../templates"
 	schemaPath := filepath.Join(baseDir, "_base", "k8s.json")

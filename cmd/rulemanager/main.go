@@ -84,7 +84,7 @@ func main() {
 	// 4. Initialize Services
 	validator := validation.NewJSONSchemaValidator()
 	// Use the initialized store and provider
-	ruleService := rules.NewService(templateProvider, validator)
+	ruleService := rules.NewService(templateProvider, ruleStore, validator)
 
 	// Seed default templates
 	if err := rules.SeedTemplates(ctx, templateProvider, "./templates"); err != nil {

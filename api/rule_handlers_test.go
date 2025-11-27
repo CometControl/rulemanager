@@ -17,7 +17,7 @@ func TestRuleHandlers_CreateRule(t *testing.T) {
 	mockStore := new(MockRuleStore)
 	mockTP := new(MockTemplateProvider)
 	validator := validation.NewJSONSchemaValidator()
-	ruleService := rules.NewService(mockTP, validator)
+	ruleService := rules.NewService(mockTP, mockStore, validator)
 
 	handlers := &RuleHandlers{
 		ruleStore:   mockStore,
@@ -35,6 +35,7 @@ func TestRuleHandlers_CreateRule(t *testing.T) {
 
 		mockTP.On("GetSchema", ctx, "k8s").Return(schema, nil).Twice() // ValidateRule + GenerateRule
 		mockTP.On("GetTemplate", ctx, "k8s").Return(tmpl, nil).Once()
+		mockStore.On("SearchRules", ctx, mock.AnythingOfType("database.RuleFilter")).Return([]*database.Rule{}, nil).Once()
 		mockStore.On("CreateRule", ctx, mock.AnythingOfType("*database.Rule")).Return(nil).Once()
 
 		output, err := handlers.CreateRule(ctx, input)
@@ -71,6 +72,7 @@ func TestRuleHandlers_CreateRule(t *testing.T) {
 		badTmpl := `{{ .invalid_syntax`
 		mockTP.On("GetSchema", ctx, "k8s").Return(schema, nil).Twice() // ValidateRule + GenerateRule
 		mockTP.On("GetTemplate", ctx, "k8s").Return(badTmpl, nil).Once()
+		mockStore.On("SearchRules", ctx, mock.AnythingOfType("database.RuleFilter")).Return([]*database.Rule{}, nil).Once()
 
 		output, err := handlers.CreateRule(ctx, input)
 
@@ -86,6 +88,7 @@ func TestRuleHandlers_CreateRule(t *testing.T) {
 
 		mockTP.On("GetSchema", ctx, "k8s").Return(schema, nil).Twice() // ValidateRule + GenerateRule
 		mockTP.On("GetTemplate", ctx, "k8s").Return(tmpl, nil).Once()
+		mockStore.On("SearchRules", ctx, mock.AnythingOfType("database.RuleFilter")).Return([]*database.Rule{}, nil).Once()
 		mockStore.On("CreateRule", ctx, mock.AnythingOfType("*database.Rule")).Return(errors.New("database error")).Once()
 
 		output, err := handlers.CreateRule(ctx, input)
@@ -109,8 +112,9 @@ func TestRuleHandlers_CreateRule(t *testing.T) {
 		}`)
 
 		// Each rule needs validation + generation, and store creation
-		mockTP.On("GetSchema", ctx, "k8s").Return(schema, nil).Times(6)                       // 3 rules * 2 (ValidateRule + GenerateRule)
-		mockTP.On("GetTemplate", ctx, "k8s").Return(tmpl, nil).Times(3)                       // 3 rules
+		mockTP.On("GetSchema", ctx, "k8s").Return(schema, nil).Times(6) // 3 rules * 2 (ValidateRule + GenerateRule)
+		mockTP.On("GetTemplate", ctx, "k8s").Return(tmpl, nil).Times(3) // 3 rules
+		mockStore.On("SearchRules", ctx, mock.AnythingOfType("database.RuleFilter")).Return([]*database.Rule{}, nil).Times(3)
 		mockStore.On("CreateRule", ctx, mock.AnythingOfType("*database.Rule")).Return(nil).Times(3) // 3 rules
 
 		output, err := handlers.CreateRule(ctx, input)
@@ -167,7 +171,7 @@ func TestRuleHandlers_GetRule(t *testing.T) {
 	mockStore := new(MockRuleStore)
 	mockTP := new(MockTemplateProvider)
 	validator := validation.NewJSONSchemaValidator()
-	ruleService := rules.NewService(mockTP, validator)
+	ruleService := rules.NewService(mockTP, mockStore, validator)
 
 	handlers := &RuleHandlers{
 		ruleStore:   mockStore,
@@ -209,7 +213,7 @@ func TestRuleHandlers_ListRules(t *testing.T) {
 	mockStore := new(MockRuleStore)
 	mockTP := new(MockTemplateProvider)
 	validator := validation.NewJSONSchemaValidator()
-	ruleService := rules.NewService(mockTP, validator)
+	ruleService := rules.NewService(mockTP, mockStore, validator)
 
 	handlers := &RuleHandlers{
 		ruleStore:   mockStore,
@@ -248,7 +252,7 @@ func TestRuleHandlers_UpdateRule(t *testing.T) {
 	mockStore := new(MockRuleStore)
 	mockTP := new(MockTemplateProvider)
 	validator := validation.NewJSONSchemaValidator()
-	ruleService := rules.NewService(mockTP, validator)
+	ruleService := rules.NewService(mockTP, mockStore, validator)
 
 	handlers := &RuleHandlers{
 		ruleStore:   mockStore,
@@ -271,7 +275,8 @@ func TestRuleHandlers_UpdateRule(t *testing.T) {
 		}
 
 		mockStore.On("GetRule", ctx, "123").Return(existingRule, nil).Once()
-		mockTP.On("GetSchema", ctx, "k8s").Return(schema, nil).Twice() // ValidateRule + GenerateRule
+		mockTP.On("GetSchema", ctx, "k8s").Return(schema, nil).Twice()                                                      // ValidateRule + PlanRuleUpdate
+		mockStore.On("SearchRules", ctx, mock.AnythingOfType("database.RuleFilter")).Return([]*database.Rule{}, nil).Once() // PlanRuleUpdate check
 		mockTP.On("GetTemplate", ctx, "k8s").Return(tmpl, nil).Once()
 		mockStore.On("UpdateRule", ctx, "123", mock.AnythingOfType("*database.Rule")).Return(nil).Once()
 
@@ -296,12 +301,13 @@ func TestRuleHandlers_UpdateRule(t *testing.T) {
 			Parameters:   json.RawMessage(`{"target": {"environment": "prod", "namespace": "old-ns"}}`),
 		}
 
-		mockStore.On("GetRule", ctx, "123").Return(existingRule, nil).Once()
+		mockStore.On("GetRule", ctx, "123").Return(existingRule, nil).Twice()
 
 		// Expect merged parameters: environment=prod (kept), namespace=new-ns (updated)
 		// We can't easily match the exact JSON string in mock expectation due to key ordering,
 		// but we can verify the behavior by what is passed to ValidateRule
 		mockTP.On("GetSchema", ctx, "k8s").Return(schema, nil).Twice()
+		mockStore.On("SearchRules", ctx, mock.AnythingOfType("database.RuleFilter")).Return([]*database.Rule{}, nil).Once() // PlanRuleUpdate check
 		mockTP.On("GetTemplate", ctx, "k8s").Return(tmpl, nil).Once()
 
 		// Verify UpdateRule is called with merged parameters
@@ -359,7 +365,8 @@ func TestRuleHandlers_UpdateRule(t *testing.T) {
 		}
 
 		mockStore.On("GetRule", ctx, "123").Return(existingRule, nil).Once()
-		mockTP.On("GetSchema", ctx, "k8s").Return(schema, nil).Twice() // ValidateRule + GenerateRule
+		mockTP.On("GetSchema", ctx, "k8s").Return(schema, nil).Twice()                                                      // ValidateRule + PlanRuleUpdate
+		mockStore.On("SearchRules", ctx, mock.AnythingOfType("database.RuleFilter")).Return([]*database.Rule{}, nil).Once() // PlanRuleUpdate check
 		mockTP.On("GetTemplate", ctx, "k8s").Return(tmpl, nil).Once()
 		mockStore.On("UpdateRule", ctx, "123", mock.AnythingOfType("*database.Rule")).Return(errors.New("database error")).Once()
 
@@ -376,7 +383,7 @@ func TestRuleHandlers_DeleteRule(t *testing.T) {
 	mockStore := new(MockRuleStore)
 	mockTP := new(MockTemplateProvider)
 	validator := validation.NewJSONSchemaValidator()
-	ruleService := rules.NewService(mockTP, validator)
+	ruleService := rules.NewService(mockTP, mockStore, validator)
 
 	handlers := &RuleHandlers{
 		ruleStore:   mockStore,

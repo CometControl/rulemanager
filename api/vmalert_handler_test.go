@@ -15,7 +15,8 @@ func TestRuleHandlers_GetVMAlertConfig(t *testing.T) {
 	mockStore := new(MockRuleStore)
 	mockTP := new(MockTemplateProvider)
 	validator := validation.NewJSONSchemaValidator()
-	ruleService := rules.NewService(mockTP, validator)
+	mockRS := new(MockRuleStore)
+	ruleService := rules.NewService(mockTP, mockRS, validator)
 
 	handlers := &RuleHandlers{
 		ruleStore:   mockStore,

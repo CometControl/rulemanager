@@ -14,7 +14,8 @@ func TestService_GenerateVMAlertConfig(t *testing.T) {
 	// Setup
 	mockTP := new(MockTemplateProvider)
 	mockVal := new(MockSchemaValidator)
-	service := NewService(mockTP, mockVal)
+	mockRS := new(MockRuleStore)
+	service := NewService(mockTP, mockRS, mockVal)
 	ctx := context.Background()
 
 	templateName := "test_template"
@@ -77,7 +78,8 @@ func TestService_GenerateVMAlertConfig(t *testing.T) {
 func TestService_ValidateTemplate(t *testing.T) {
 	mockTP := new(MockTemplateProvider)
 	mockVal := new(MockSchemaValidator)
-	service := NewService(mockTP, mockVal)
+	mockRS := new(MockRuleStore)
+	service := NewService(mockTP, mockRS, mockVal)
 	ctx := context.Background()
 
 	t.Run("Success", func(t *testing.T) {

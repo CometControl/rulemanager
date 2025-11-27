@@ -10,7 +10,6 @@ import (
 	"rulemanager/internal/rules"
 	"time"
 
-	"dario.cat/mergo"
 	"github.com/danielgtaylor/huma/v2"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -82,6 +81,24 @@ func NewRuleHandlers(api huma.API, rs database.RuleStore, svc *rules.Service) {
 		Tags:        []string{"Rules"},
 	}, h.SearchRules)
 
+	huma.Register(api, huma.Operation{
+		OperationID: "plan-rule",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/rules/plan",
+		Summary:     "Plan rule creation",
+		Description: "Simulates rule creation and checks for conflicts/overrides.",
+		Tags:        []string{"Rules"},
+	}, h.PlanRule)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "plan-update-rule",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/rules/{id}/plan",
+		Summary:     "Plan rule update",
+		Description: "Simulates rule update and checks for conflicts.",
+		Tags:        []string{"Rules"},
+	}, h.PlanUpdateRule)
+
 	h.RegisterVMAlertEndpoint(api)
 }
 
@@ -101,8 +118,14 @@ type CreateRuleInput struct {
 
 type CreateRuleOutput struct {
 	Body struct {
-		IDs   []string `json:"ids" doc:"The IDs of the created rules"`
-		Count int      `json:"count" doc:"The number of rules created"`
+		IDs   []string `json:"ids" doc:"The IDs of the created or updated rules"`
+		Count int      `json:"count" doc:"The number of rules processed"`
+	}
+}
+
+type PlanRuleOutput struct {
+	Body struct {
+		Plans []*rules.RulePlan `json:"plans"`
 	}
 }
 
@@ -188,39 +211,96 @@ func (h *RuleHandlers) CreateRule(ctx context.Context, input *CreateRuleInput) (
 			return nil, huma.Error500InternalServerError(fmt.Sprintf("Failed to marshal parameters for rule %d", i))
 		}
 
-		// Validate parameters and pipelines
-		if err := h.ruleService.ValidateRule(ctx, input.Body.TemplateName, singleRuleJSON); err != nil {
-			slog.Warn("CreateRule: Validation failed", "rule_index", i, "template", input.Body.TemplateName, "error", err)
-			return nil, huma.Error400BadRequest(fmt.Sprintf("Validation failed for rule %d: %s", i, err.Error()))
+		// Plan the creation (check for existence/validity)
+		plan, err := h.ruleService.PlanRuleCreation(ctx, input.Body.TemplateName, singleRuleJSON)
+		if err != nil {
+			slog.Warn("CreateRule: Planning failed", "rule_index", i, "template", input.Body.TemplateName, "error", err)
+			return nil, huma.Error400BadRequest(fmt.Sprintf("Validation/Planning failed for rule %d: %s", i, err.Error()))
 		}
 
-		// Validate template syntax by attempting generation
+		// Validate template syntax by attempting generation (PlanRuleCreation only validates schema)
 		if _, err := h.ruleService.GenerateRule(ctx, input.Body.TemplateName, singleRuleJSON); err != nil {
 			slog.Warn("CreateRule: Generation failed", "rule_index", i, "template", input.Body.TemplateName, "error", err)
 			return nil, huma.Error400BadRequest(fmt.Sprintf("Generation failed for rule %d: %s", i, err.Error()))
 		}
 
-		// Create the rule in the database
-		rule := &database.Rule{
-			ID:           primitive.NewObjectID().Hex(),
-			TemplateName: input.Body.TemplateName,
-			Parameters:   singleRuleJSON,
-			CreatedAt:    time.Now(),
-			UpdatedAt:    time.Now(),
-		}
+		if plan.Action == "update" {
+			// Update existing rule
+			rule := plan.ExistingRule
+			rule.Parameters = singleRuleJSON
+			rule.TemplateName = input.Body.TemplateName // Ensure template name is updated if changed (though plan checks template name)
 
-		if err := h.ruleStore.CreateRule(ctx, rule); err != nil {
-			slog.Error("CreateRule: Failed to persist rule", "rule_index", i, "error", err)
-			return nil, huma.Error500InternalServerError(fmt.Sprintf("Failed to create rule %d: %s", i, err.Error()))
-		}
+			if err := h.ruleStore.UpdateRule(ctx, rule.ID, rule); err != nil {
+				slog.Error("CreateRule: Failed to update rule", "id", rule.ID, "error", err)
+				return nil, huma.Error500InternalServerError(fmt.Sprintf("Failed to update rule %d: %s", i, err.Error()))
+			}
+			createdIDs = append(createdIDs, rule.ID)
+			slog.Info("CreateRule: Updated existing rule", "id", rule.ID)
+		} else {
+			// Create new rule
+			rule := plan.NewRule
+			rule.ID = primitive.NewObjectID().Hex()
+			rule.CreatedAt = time.Now()
+			rule.UpdatedAt = time.Now()
 
-		createdIDs = append(createdIDs, rule.ID)
+			if err := h.ruleStore.CreateRule(ctx, rule); err != nil {
+				slog.Error("CreateRule: Failed to persist rule", "rule_index", i, "error", err)
+				return nil, huma.Error500InternalServerError(fmt.Sprintf("Failed to create rule %d: %s", i, err.Error()))
+			}
+			createdIDs = append(createdIDs, rule.ID)
+			slog.Info("CreateRule: Created new rule", "id", rule.ID)
+		}
 	}
 
 	resp := &CreateRuleOutput{}
 	resp.Body.IDs = createdIDs
 	resp.Body.Count = len(createdIDs)
-	slog.Info("CreateRule: Successfully created rules", "count", len(createdIDs), "template", input.Body.TemplateName)
+	slog.Info("CreateRule: Successfully processed rules", "count", len(createdIDs), "template", input.Body.TemplateName)
+	return resp, nil
+}
+
+// PlanRule simulates rule creation and returns the plan.
+func (h *RuleHandlers) PlanRule(ctx context.Context, input *CreateRuleInput) (*PlanRuleOutput, error) {
+	// Parse parameters into the expected structure
+	var params RuleCreationParams
+	if err := json.Unmarshal(input.Body.Parameters, &params); err != nil {
+		return nil, huma.Error400BadRequest("Invalid parameters: " + err.Error())
+	}
+
+	if params.Target == nil {
+		return nil, huma.Error400BadRequest("'target' is required")
+	}
+	if len(params.Rules) == 0 {
+		return nil, huma.Error400BadRequest("'rules' array is required and cannot be empty")
+	}
+
+	var plans []*rules.RulePlan
+
+	for i, ruleItem := range params.Rules {
+		singleRuleParams := struct {
+			Target json.RawMessage   `json:"target"`
+			Common json.RawMessage   `json:"common,omitempty"`
+			Rules  []json.RawMessage `json:"rules"`
+		}{
+			Target: params.Target,
+			Common: params.Common,
+			Rules:  []json.RawMessage{ruleItem},
+		}
+
+		singleRuleJSON, err := json.Marshal(singleRuleParams)
+		if err != nil {
+			return nil, huma.Error500InternalServerError(fmt.Sprintf("Failed to marshal parameters for rule %d", i))
+		}
+
+		plan, err := h.ruleService.PlanRuleCreation(ctx, input.Body.TemplateName, singleRuleJSON)
+		if err != nil {
+			return nil, huma.Error400BadRequest(fmt.Sprintf("Planning failed for rule %d: %s", i, err.Error()))
+		}
+		plans = append(plans, plan)
+	}
+
+	resp := &PlanRuleOutput{}
+	resp.Body.Plans = plans
 	return resp, nil
 }
 
@@ -248,71 +328,39 @@ func (h *RuleHandlers) ListRules(ctx context.Context, input *ListRulesInput) (*L
 // UpdateRule updates an existing rule.
 // Supports partial updates for parameters.
 func (h *RuleHandlers) UpdateRule(ctx context.Context, input *UpdateRuleInput) (*UpdateRuleOutput, error) {
-	// 1. Fetch existing rule
-	existingRule, err := h.ruleStore.GetRule(ctx, input.ID)
-	if err != nil {
-		slog.Warn("UpdateRule: Rule not found", "id", input.ID, "error", err)
-		return nil, huma.Error404NotFound("Rule not found: " + err.Error())
-	}
-
-	// 2. Determine template name (use existing if not provided)
+	// 1. Fetch existing rule to get template name if not provided
+	// (PlanRuleUpdate fetches it again, but we need template name for the call if input is empty)
+	// Actually, PlanRuleUpdate needs template name.
 	templateName := input.Body.TemplateName
 	if templateName == "" {
+		existingRule, err := h.ruleStore.GetRule(ctx, input.ID)
+		if err != nil {
+			return nil, huma.Error404NotFound("Rule not found: " + err.Error())
+		}
 		templateName = existingRule.TemplateName
 	}
 
-	// 3. Merge parameters (Partial Update)
-	var finalParamsJSON json.RawMessage
-
-	if len(input.Body.Parameters) > 0 {
-		// Unmarshal existing parameters
-		var existingParams map[string]interface{}
-		if err := json.Unmarshal(existingRule.Parameters, &existingParams); err != nil {
-			return nil, huma.Error500InternalServerError("Failed to parse existing rule parameters: " + err.Error())
-		}
-
-		// Unmarshal new parameters
-		var newParams map[string]interface{}
-		if err := json.Unmarshal(input.Body.Parameters, &newParams); err != nil {
-			return nil, huma.Error400BadRequest("Invalid parameters JSON: " + err.Error())
-		}
-
-		// Deep merge: existing <- new (new values override existing)
-		if err := mergo.Merge(&existingParams, newParams, mergo.WithOverride); err != nil {
-			slog.Error("UpdateRule: Failed to merge parameters", "id", input.ID, "error", err)
-			return nil, huma.Error500InternalServerError("Failed to merge parameters: " + err.Error())
-		}
-
-		// Marshal back to JSON
-		mergedJSON, err := json.Marshal(existingParams)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("Failed to marshal merged parameters: " + err.Error())
-		}
-		finalParamsJSON = mergedJSON
-	} else {
-		// No new parameters, keep existing
-		finalParamsJSON = existingRule.Parameters
-	}
-
-	// 4. Validate merged parameters
-	if err := h.ruleService.ValidateRule(ctx, templateName, finalParamsJSON); err != nil {
-		slog.Warn("UpdateRule: Validation failed", "id", input.ID, "error", err)
-		return nil, huma.Error400BadRequest(err.Error())
-	}
-
-	// 5. Validate template syntax
-	_, err = h.ruleService.GenerateRule(ctx, templateName, finalParamsJSON)
+	// 2. Plan the update (checks for conflicts)
+	plan, err := h.ruleService.PlanRuleUpdate(ctx, input.ID, templateName, input.Body.Parameters)
 	if err != nil {
+		slog.Warn("UpdateRule: Planning failed", "id", input.ID, "error", err)
 		return nil, huma.Error400BadRequest(err.Error())
 	}
 
-	// 6. Update the rule
-	rule := &database.Rule{
-		TemplateName: templateName,
-		Parameters:   finalParamsJSON,
+	// 3. Check for conflict
+	if plan.Action == "conflict" {
+		return nil, huma.Error409Conflict(plan.Reason)
 	}
 
-	if err := h.ruleStore.UpdateRule(ctx, input.ID, rule); err != nil {
+	// 4. Validate template syntax (PlanRuleUpdate only validates schema)
+	// We use the NewRule from the plan which has the merged parameters
+	if _, err := h.ruleService.GenerateRule(ctx, templateName, plan.NewRule.Parameters); err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
+
+	// 5. Update the rule
+	// We use the NewRule from the plan which has the merged parameters
+	if err := h.ruleStore.UpdateRule(ctx, input.ID, plan.NewRule); err != nil {
 		slog.Error("UpdateRule: Failed to update rule", "id", input.ID, "error", err)
 		return nil, huma.Error500InternalServerError(err.Error())
 	}
@@ -320,6 +368,27 @@ func (h *RuleHandlers) UpdateRule(ctx context.Context, input *UpdateRuleInput) (
 	resp := &UpdateRuleOutput{}
 	resp.Body.ID = input.ID
 	return resp, nil
+}
+
+// PlanUpdateRule simulates rule update and returns the plan.
+func (h *RuleHandlers) PlanUpdateRule(ctx context.Context, input *UpdateRuleInput) (*rules.RulePlan, error) {
+	// 1. Fetch existing rule to get template name if not provided
+	templateName := input.Body.TemplateName
+	if templateName == "" {
+		existingRule, err := h.ruleStore.GetRule(ctx, input.ID)
+		if err != nil {
+			return nil, huma.Error404NotFound("Rule not found: " + err.Error())
+		}
+		templateName = existingRule.TemplateName
+	}
+
+	// 2. Plan the update
+	plan, err := h.ruleService.PlanRuleUpdate(ctx, input.ID, templateName, input.Body.Parameters)
+	if err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
+
+	return plan, nil
 }
 
 // DeleteRule deletes a rule by ID.

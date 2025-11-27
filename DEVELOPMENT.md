@@ -634,6 +634,10 @@ The following endpoints will be defined to manage the rules.
     *   **Request Body:** `{ "templateName": "...", "parameters": { ... } }`
     *   **Logic:** The handler validates the input against the dynamic JSON schema (which includes the datasource definition), then calls `RuleStore.CreateRule()`. **Must trigger `vmalert` cache invalidation.**
 
+*   **Plan Rule Creation:** `POST /api/v1/rules/plan`
+    *   **Request Body:** Same as Create Rule.
+    *   **Logic:** Simulates creation, checks for uniqueness conflicts/overrides, and returns the planned action.
+
 *   **List Rules:** `GET /api/v1/rules`
     *   **Query Parameters:** `offset` (int), `limit` (int) for pagination.
     *   **Logic:** Calls `RuleStore.ListRules()` and returns the list of rules.
@@ -646,6 +650,11 @@ The following endpoints will be defined to manage the rules.
     *   **Path Parameter:** `ruleId` (string).
     *   **Request Body:** `{ "templateName": "...", "parameters": { ... } }`
     *   **Logic:** The handler validates the new input against the schema, then calls `RuleStore.UpdateRule()`. **Must trigger `vmalert` cache invalidation.**
+
+*   **Plan Rule Update:** `POST /api/v1/rules/{ruleId}/plan`
+    *   **Path Parameter:** `ruleId` (string).
+    *   **Request Body:** Same as Update Rule.
+    *   **Logic:** Simulates update, checks for uniqueness conflicts with *other* rules, and returns the planned action.
 
 *   **Delete Rule:** `DELETE /api/v1/rules/{ruleId}`
     *   **Path Parameter:** `ruleId` (string).

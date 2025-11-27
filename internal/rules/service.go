@@ -11,25 +11,27 @@ import (
 	"strings"
 	"text/template"
 
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
-
+	"dario.cat/mergo"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/config"
 	"github.com/VictoriaMetrics/metricsql"
-	"gopkg.in/yaml.v2"
+	"github.com/stretchr/testify/assert/yaml"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Service provides methods for managing rules and templates.
 type Service struct {
 	templateProvider  database.TemplateProvider
+	ruleStore         database.RuleStore
 	validator         validation.SchemaValidator
 	pipelineProcessor *PipelineProcessor
 }
 
 // NewService creates a new Service with the given dependencies.
-func NewService(tp database.TemplateProvider, v validation.SchemaValidator) *Service {
+func NewService(tp database.TemplateProvider, rs database.RuleStore, v validation.SchemaValidator) *Service {
 	return &Service{
 		templateProvider:  tp,
+		ruleStore:         rs,
 		validator:         v,
 		pipelineProcessor: NewPipelineProcessor(),
 	}
@@ -238,4 +240,258 @@ func (s *Service) ValidateRuleContent(ruleYaml string) error {
 	}
 
 	return nil
+}
+
+// RulePlan represents the result of a rule planning operation.
+type RulePlan struct {
+	Action       string         `json:"action"` // "create", "update", "no_change"
+	Reason       string         `json:"reason"`
+	ExistingRule *database.Rule `json:"existing_rule,omitempty"`
+	NewRule      *database.Rule `json:"new_rule"`
+}
+
+// PlanRuleCreation simulates rule creation and checks for conflicts.
+func (s *Service) PlanRuleCreation(ctx context.Context, templateName string, parameters json.RawMessage) (*RulePlan, error) {
+	// 1. Validate parameters against schema
+	schemaStr, err := s.templateProvider.GetSchema(ctx, templateName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get schema: %w", err)
+	}
+
+	if err := s.validator.Validate(schemaStr, parameters); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
+
+	// 2. Parse parameters
+	var paramsMap map[string]interface{}
+	if err := json.Unmarshal(parameters, &paramsMap); err != nil {
+		return nil, fmt.Errorf("failed to parse parameters: %w", err)
+	}
+
+	// 3. Determine Uniqueness Keys
+	var schemaObj struct {
+		UniquenessKeys []string `json:"uniqueness_keys"`
+	}
+	if err := json.Unmarshal([]byte(schemaStr), &schemaObj); err != nil {
+		return nil, fmt.Errorf("failed to parse schema for uniqueness keys: %w", err)
+	}
+
+	uniquenessKeys := schemaObj.UniquenessKeys
+	if len(uniquenessKeys) == 0 {
+		// Fallback to default: target + rule_type
+		uniquenessKeys = []string{"target", "rules.rule_type"}
+	}
+
+	// 4. Construct Search Filter
+	filter := database.RuleFilter{
+		TemplateName: templateName,
+		Parameters:   make(map[string]string),
+	}
+
+	for _, key := range uniquenessKeys {
+		if key == "target" {
+			// Special handling for target: expand all leaf fields
+			if target, ok := paramsMap["target"].(map[string]interface{}); ok {
+				for k, v := range target {
+					if strVal, ok := v.(string); ok {
+						filter.Parameters["target."+k] = strVal
+					}
+				}
+			}
+			continue
+		}
+
+		// Handle dot notation (e.g., "rules.rule_type", "common.severity")
+		val, found := getValueByPath(paramsMap, key)
+		if found && val != "" {
+			filter.Parameters[key] = val
+		}
+	}
+
+	// 5. Search for existing rules
+	existingRules, err := s.ruleStore.SearchRules(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search for existing rules: %w", err)
+	}
+
+	// 6. Determine Action
+	newRule := &database.Rule{
+		TemplateName: templateName,
+		Parameters:   parameters,
+	}
+
+	if len(existingRules) > 0 {
+		existing := existingRules[0]
+		return &RulePlan{
+			Action:       "update",
+			Reason:       fmt.Sprintf("Rule with same uniqueness constraints (%v) already exists", uniquenessKeys),
+			ExistingRule: existing,
+			NewRule:      newRule,
+		}, nil
+	}
+
+	return &RulePlan{
+		Action:  "create",
+		Reason:  "No existing rule found with these constraints",
+		NewRule: newRule,
+	}, nil
+}
+
+// PlanRuleUpdate simulates rule update and checks for conflicts.
+func (s *Service) PlanRuleUpdate(ctx context.Context, id string, templateName string, parameters json.RawMessage) (*RulePlan, error) {
+	// 1. Fetch existing rule
+	existingRule, err := s.ruleStore.GetRule(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get existing rule: %w", err)
+	}
+
+	// 2. Merge parameters (Partial Update)
+	var finalParamsJSON json.RawMessage
+	if len(parameters) > 0 {
+		var existingParams map[string]interface{}
+		if err := json.Unmarshal(existingRule.Parameters, &existingParams); err != nil {
+			return nil, fmt.Errorf("failed to parse existing rule parameters: %w", err)
+		}
+
+		var newParams map[string]interface{}
+		if err := json.Unmarshal(parameters, &newParams); err != nil {
+			return nil, fmt.Errorf("invalid parameters JSON: %w", err)
+		}
+
+		if err := mergo.Merge(&existingParams, newParams, mergo.WithOverride); err != nil {
+			return nil, fmt.Errorf("failed to merge parameters: %w", err)
+		}
+
+		mergedJSON, err := json.Marshal(existingParams)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal merged parameters: %w", err)
+		}
+		finalParamsJSON = mergedJSON
+	} else {
+		finalParamsJSON = existingRule.Parameters
+	}
+
+	// 3. Validate merged parameters against schema
+	schemaStr, err := s.templateProvider.GetSchema(ctx, templateName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get schema: %w", err)
+	}
+
+	if err := s.validator.Validate(schemaStr, finalParamsJSON); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
+
+	// 4. Determine Uniqueness Keys
+	var schemaObj struct {
+		UniquenessKeys []string `json:"uniqueness_keys"`
+	}
+	if err := json.Unmarshal([]byte(schemaStr), &schemaObj); err != nil {
+		return nil, fmt.Errorf("failed to parse schema for uniqueness keys: %w", err)
+	}
+
+	uniquenessKeys := schemaObj.UniquenessKeys
+	if len(uniquenessKeys) == 0 {
+		uniquenessKeys = []string{"target", "rules.rule_type"}
+	}
+
+	// 5. Construct Search Filter
+	var paramsMap map[string]interface{}
+	if err := json.Unmarshal(finalParamsJSON, &paramsMap); err != nil {
+		return nil, fmt.Errorf("failed to parse final parameters: %w", err)
+	}
+
+	filter := database.RuleFilter{
+		TemplateName: templateName,
+		Parameters:   make(map[string]string),
+	}
+
+	for _, key := range uniquenessKeys {
+		if key == "target" {
+			if target, ok := paramsMap["target"].(map[string]interface{}); ok {
+				for k, v := range target {
+					if strVal, ok := v.(string); ok {
+						filter.Parameters["target."+k] = strVal
+					}
+				}
+			}
+			continue
+		}
+
+		val, found := getValueByPath(paramsMap, key)
+		if found && val != "" {
+			filter.Parameters[key] = val
+		}
+	}
+
+	// 6. Search for existing rules
+	existingRules, err := s.ruleStore.SearchRules(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search for existing rules: %w", err)
+	}
+
+	// 7. Check for conflicts (exclude current ID)
+	for _, rule := range existingRules {
+		if rule.ID != id {
+			return &RulePlan{
+				Action:       "conflict",
+				Reason:       fmt.Sprintf("Rule with same uniqueness constraints (%v) already exists (ID: %s)", uniquenessKeys, rule.ID),
+				ExistingRule: rule,
+				NewRule: &database.Rule{
+					ID:           id,
+					TemplateName: templateName,
+					Parameters:   finalParamsJSON,
+				},
+			}, nil
+		}
+	}
+
+	// No conflict -> Update
+	return &RulePlan{
+		Action: "update",
+		Reason: "No conflict found",
+		NewRule: &database.Rule{
+			ID:           id,
+			TemplateName: templateName,
+			Parameters:   finalParamsJSON,
+		},
+	}, nil
+}
+
+// getValueByPath extracts a string value from a map using dot notation.
+// It handles arrays by taking the first element (e.g., "rules.rule_type" -> rules[0].rule_type).
+func getValueByPath(data map[string]interface{}, path string) (string, bool) {
+	parts := strings.Split(path, ".")
+	var current interface{} = data
+
+	for _, part := range parts {
+		if m, ok := current.(map[string]interface{}); ok {
+			current = m[part]
+		} else if arr, ok := current.([]interface{}); ok {
+			// If current is an array, we assume we want the first element's property
+			// But wait, the path "rules.rule_type" means "rules" -> "rule_type".
+			// If "rules" is an array, we need to step into the first element.
+			// But the loop is iterating over parts.
+			// If we are at "rules" (which is an array), we need to stay here?
+			// No, "rules" key in map gave us the array.
+			// The NEXT part "rule_type" should be looked up in the first element of that array.
+			if len(arr) > 0 {
+				current = arr[0]
+				// Now we need to look up 'part' in this new object
+				if m, ok := current.(map[string]interface{}); ok {
+					current = m[part]
+				} else {
+					return "", false
+				}
+			} else {
+				return "", false
+			}
+		} else {
+			return "", false
+		}
+	}
+
+	if str, ok := current.(string); ok {
+		return str, true
+	}
+	return "", false
 }

@@ -28,7 +28,8 @@ func TestTemplateHandlers(t *testing.T) {
 	// For these tests we don't need the real service, but we need to pass something.
 	// We can pass nil if we don't call ValidateTemplate, or a real service with mocks.
 	// Let's pass a service with the mock store and validator.
-	service := rules.NewService(mockStore, validator)
+	mockRS := new(MockRuleStore)
+	service := rules.NewService(mockStore, mockRS, validator)
 
 	NewTemplateHandlers(humaAPI, mockStore, validator, service)
 	t.Run("CreateSchema", func(t *testing.T) {

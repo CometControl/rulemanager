@@ -45,6 +45,44 @@ func (m *MockTemplateProvider) CreateTemplate(ctx context.Context, name, content
 func (m *MockTemplateProvider) DeleteSchema(ctx context.Context, name string) error   { return nil }
 func (m *MockTemplateProvider) DeleteTemplate(ctx context.Context, name string) error { return nil }
 
+// MockRuleStore
+type MockRuleStore struct {
+	mock.Mock
+}
+
+func (m *MockRuleStore) CreateRule(ctx context.Context, rule *database.Rule) error {
+	args := m.Called(ctx, rule)
+	return args.Error(0)
+}
+
+func (m *MockRuleStore) GetRule(ctx context.Context, id string) (*database.Rule, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*database.Rule), args.Error(1)
+}
+
+func (m *MockRuleStore) ListRules(ctx context.Context, offset, limit int) ([]*database.Rule, error) {
+	args := m.Called(ctx, offset, limit)
+	return args.Get(0).([]*database.Rule), args.Error(1)
+}
+
+func (m *MockRuleStore) UpdateRule(ctx context.Context, id string, rule *database.Rule) error {
+	args := m.Called(ctx, id, rule)
+	return args.Error(0)
+}
+
+func (m *MockRuleStore) DeleteRule(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockRuleStore) SearchRules(ctx context.Context, filter database.RuleFilter) ([]*database.Rule, error) {
+	args := m.Called(ctx, filter)
+	return args.Get(0).([]*database.Rule), args.Error(1)
+}
+
 func TestTemplateParameters(t *testing.T) {
 	// Locate template files
 	// Using k8s as the reference implementation for parameter testing
@@ -72,7 +110,8 @@ func TestTemplateParameters(t *testing.T) {
 	mockTP.On("GetTemplate", mock.Anything, "k8s").Return(tmplContent, nil)
 
 	validator := validation.NewJSONSchemaValidator()
-	svc := rules.NewService(mockTP, validator)
+	mockRS := new(MockRuleStore)
+	svc := rules.NewService(mockTP, mockRS, validator)
 
 	tests := []struct {
 		name       string

@@ -37,6 +37,9 @@ func (m *MockRuleStore) CreateRule(ctx context.Context, rule *database.Rule) err
 }
 func (m *MockRuleStore) GetRule(ctx context.Context, id string) (*database.Rule, error) {
 	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(*database.Rule), args.Error(1)
 }
 func (m *MockRuleStore) ListRules(ctx context.Context, offset, limit int) ([]*database.Rule, error) {
@@ -99,7 +102,7 @@ func TestCreateRuleEndpoint(t *testing.T) {
 	mockStore := new(MockRuleStore)
 	mockTP := new(MockTemplateProvider)
 	validator := validation.NewJSONSchemaValidator() // Use real validator
-	ruleService := rules.NewService(mockTP, validator)
+	ruleService := rules.NewService(mockTP, mockStore, validator)
 
 	NewRuleHandlers(humaAPI, mockStore, ruleService)
 
@@ -114,7 +117,7 @@ func TestCreateRuleEndpoint(t *testing.T) {
 				"namespace": "test",
 			},
 			"rules": []map[string]string{
-				{"foo": "bar"},
+				{"foo": "bar", "rule_type": "test-type", "severity": "info"},
 			},
 		},
 	}
@@ -123,6 +126,7 @@ func TestCreateRuleEndpoint(t *testing.T) {
 	// Expectations
 	mockTP.On("GetSchema", mock.Anything, templateName).Return(schema, nil)
 	mockTP.On("GetTemplate", mock.Anything, templateName).Return(tmpl, nil)
+	mockStore.On("SearchRules", mock.Anything, mock.AnythingOfType("database.RuleFilter")).Return([]*database.Rule{}, nil)
 	mockStore.On("CreateRule", mock.Anything, mock.AnythingOfType("*database.Rule")).Return(nil)
 
 	// Request

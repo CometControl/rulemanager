@@ -237,3 +237,125 @@ func TestTemplateParameters(t *testing.T) {
 		})
 	}
 }
+
+func TestCustomTemplate(t *testing.T) {
+	// Locate template files
+	schemaPath := "c:\\Dev\\rulemanager\\templates\\_base\\custom.json"
+	tmplPath := "c:\\Dev\\rulemanager\\templates\\go_templates\\custom.tmpl"
+
+	schemaBytes, err := os.ReadFile(schemaPath)
+	if err != nil {
+		wd, _ := os.Getwd()
+		rootDir := filepath.Join(wd, "..", "..")
+		schemaPath = filepath.Join(rootDir, "templates", "_base", "custom.json")
+		tmplPath = filepath.Join(rootDir, "templates", "go_templates", "custom.tmpl")
+		schemaBytes, err = os.ReadFile(schemaPath)
+	}
+	assert.NoError(t, err, "Failed to read schema file")
+
+	tmplBytes, err := os.ReadFile(tmplPath)
+	assert.NoError(t, err, "Failed to read template file")
+
+	schemaContent := string(schemaBytes)
+	tmplContent := string(tmplBytes)
+
+	mockTP := new(MockTemplateProvider)
+	mockTP.On("GetSchema", mock.Anything, "custom").Return(schemaContent, nil)
+	mockTP.On("GetTemplate", mock.Anything, "custom").Return(tmplContent, nil)
+
+	validator := validation.NewJSONSchemaValidator()
+	mockRS := new(MockRuleStore)
+	svc := rules.NewService(mockTP, mockRS, validator)
+
+	tests := []struct {
+		name       string
+		params     map[string]interface{}
+		wantErr    bool
+		wantChecks []string
+	}{
+		{
+			name: "Valid Custom Rule",
+			params: map[string]interface{}{
+				"target": map[string]string{
+					"custom_rule_name": "MyRuleGroup",
+				},
+				"common": map[string]interface{}{
+					"severity": "warning",
+				},
+				"rules": []map[string]interface{}{
+					{
+						"alert": "MyCustomAlert",
+						"expr":  "up == 0",
+						"for":   "10m",
+						"labels": map[string]string{
+							"custom_label": "value",
+						},
+						"annotations": map[string]string{
+							"summary": "Instance down",
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantChecks: []string{
+				"alert: MyCustomAlert",
+				"expr: up == 0",
+				"for: 10m",
+				"severity: warning",
+				"custom_rule_name: MyRuleGroup",
+				"custom_label: value",
+				"summary: Instance down",
+			},
+		},
+		{
+			name: "Valid Custom Rule No For",
+			params: map[string]interface{}{
+				"target": map[string]string{
+					"custom_rule_name": "MyRuleGroup",
+				},
+				"rules": []map[string]interface{}{
+					{
+						"alert": "MyCustomAlert",
+						"expr":  "up == 0",
+					},
+				},
+			},
+			wantErr: false,
+			wantChecks: []string{
+				"alert: MyCustomAlert",
+				"expr: up == 0",
+				"custom_rule_name: MyRuleGroup",
+			},
+		},
+		{
+			name: "Missing Required Expr",
+			params: map[string]interface{}{
+				"target": map[string]string{
+					"custom_rule_name": "MyRuleGroup",
+				},
+				"rules": []map[string]interface{}{
+					{
+						"alert": "InvalidAlert",
+					},
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			paramBytes, _ := json.Marshal(tt.params)
+			got, err := svc.GenerateRule(context.Background(), "custom", paramBytes)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				for _, check := range tt.wantChecks {
+					assert.Contains(t, got, check)
+				}
+				fmt.Printf("Generated Rule:\n%s\n", got)
+			}
+		})
+	}
+}

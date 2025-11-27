@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -17,6 +16,7 @@ type MongoStore struct {
 	client        *mongo.Client
 	database      *mongo.Database
 	rulesColl     *mongo.Collection
+	schemasColl   *mongo.Collection
 	templatesColl *mongo.Collection
 }
 
@@ -78,6 +78,7 @@ func NewMongoStore(ctx context.Context, connectionString, dbName string) (*Mongo
 		client:        client,
 		database:      db,
 		rulesColl:     db.Collection("rules"),
+		schemasColl:   db.Collection("schemas"),
 		templatesColl: db.Collection("templates"),
 	}, nil
 }
@@ -218,16 +219,15 @@ func (s *MongoStore) DeleteRule(ctx context.Context, id string) error {
 // TemplateProvider Implementation
 
 type templateDoc struct {
-	ID      string `bson:"_id"`
-	Type    string `bson:"type"`
-	Content string `bson:"content"`
+	ID      primitive.ObjectID `bson:"_id,omitempty"`
+	Name    string             `bson:"name"`
+	Content string             `bson:"content"`
 }
 
 // GetSchema retrieves a schema by name from MongoDB.
 func (s *MongoStore) GetSchema(ctx context.Context, name string) (string, error) {
 	var doc templateDoc
-	id := "schema:" + name
-	err := s.templatesColl.FindOne(ctx, bson.M{"_id": id}).Decode(&doc)
+	err := s.schemasColl.FindOne(ctx, bson.M{"name": name}).Decode(&doc)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return "", errors.New("schema not found")
@@ -239,7 +239,7 @@ func (s *MongoStore) GetSchema(ctx context.Context, name string) (string, error)
 
 // ListSchemas retrieves all schemas from MongoDB.
 func (s *MongoStore) ListSchemas(ctx context.Context) ([]*Schema, error) {
-	cursor, err := s.templatesColl.Find(ctx, bson.M{"type": "schema"})
+	cursor, err := s.schemasColl.Find(ctx, bson.M{})
 	if err != nil {
 		return nil, err
 	}
@@ -252,11 +252,8 @@ func (s *MongoStore) ListSchemas(ctx context.Context) ([]*Schema, error) {
 			return nil, err
 		}
 
-		// ID is "schema:name", strip prefix
-		name := strings.TrimPrefix(doc.ID, "schema:")
-
 		schemas = append(schemas, &Schema{
-			Name:   name,
+			Name:   doc.Name,
 			Schema: json.RawMessage(doc.Content),
 		})
 	}
@@ -266,8 +263,7 @@ func (s *MongoStore) ListSchemas(ctx context.Context) ([]*Schema, error) {
 // GetTemplate retrieves a template by name from MongoDB.
 func (s *MongoStore) GetTemplate(ctx context.Context, name string) (string, error) {
 	var doc templateDoc
-	id := "template:" + name
-	err := s.templatesColl.FindOne(ctx, bson.M{"_id": id}).Decode(&doc)
+	err := s.templatesColl.FindOne(ctx, bson.M{"name": name}).Decode(&doc)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return "", errors.New("template not found")
@@ -279,13 +275,12 @@ func (s *MongoStore) GetTemplate(ctx context.Context, name string) (string, erro
 
 // CreateSchema saves a new schema to MongoDB.
 func (s *MongoStore) CreateSchema(ctx context.Context, name, content string) error {
-	id := "schema:" + name
-	_, err := s.templatesColl.UpdateOne(
+	_, err := s.schemasColl.UpdateOne(
 		ctx,
-		bson.M{"_id": id},
+		bson.M{"name": name},
 		bson.M{
 			"$set": bson.M{
-				"type":    "schema",
+				"name":    name,
 				"content": content,
 			},
 		},
@@ -296,13 +291,12 @@ func (s *MongoStore) CreateSchema(ctx context.Context, name, content string) err
 
 // CreateTemplate saves a new template to MongoDB.
 func (s *MongoStore) CreateTemplate(ctx context.Context, name, content string) error {
-	id := "template:" + name
 	_, err := s.templatesColl.UpdateOne(
 		ctx,
-		bson.M{"_id": id},
+		bson.M{"name": name},
 		bson.M{
 			"$set": bson.M{
-				"type":    "template",
+				"name":    name,
 				"content": content,
 			},
 		},
@@ -313,14 +307,12 @@ func (s *MongoStore) CreateTemplate(ctx context.Context, name, content string) e
 
 // DeleteSchema removes a schema from MongoDB.
 func (s *MongoStore) DeleteSchema(ctx context.Context, name string) error {
-	id := "schema:" + name
-	_, err := s.templatesColl.DeleteOne(ctx, bson.M{"_id": id})
+	_, err := s.schemasColl.DeleteOne(ctx, bson.M{"name": name})
 	return err
 }
 
 // DeleteTemplate removes a template from MongoDB.
 func (s *MongoStore) DeleteTemplate(ctx context.Context, name string) error {
-	id := "template:" + name
-	_, err := s.templatesColl.DeleteOne(ctx, bson.M{"_id": id})
+	_, err := s.templatesColl.DeleteOne(ctx, bson.M{"name": name})
 	return err
 }

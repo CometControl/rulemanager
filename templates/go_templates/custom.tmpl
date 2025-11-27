@@ -1,0 +1,27 @@
+{{- $target := .target -}}
+{{- $common := .common -}}
+{{- range $rule := .rules }}
+- alert: {{ $rule.alert }}
+  expr: {{ $rule.expr }}
+  {{- if $rule.for }}
+  for: {{ $rule.for }}
+  {{- end }}
+  labels:
+    {{- if $common.severity }}
+    severity: {{ $common.severity }}
+    {{- end }}
+    custom_rule_name: {{ $target.custom_rule_name }}
+    {{- range $key, $value := $common.labels }}
+    {{ $key }}: {{ $value }}
+    {{- end }}
+    {{- range $key, $value := $rule.labels }}
+    {{ $key }}: {{ $value }}
+    {{- end }}
+  annotations:
+    {{- range $key, $value := $common.annotations }}
+    {{ $key }}: {{ $value }}
+    {{- end }}
+    {{- range $key, $value := $rule.annotations }}
+    {{ $key }}: {{ $value }}
+    {{- end }}
+{{- end }}

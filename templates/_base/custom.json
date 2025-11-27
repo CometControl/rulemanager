@@ -1,0 +1,93 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "title": "Custom PromQL Rule",
+    "type": "object",
+    "uniqueness_keys": [
+        "target",
+        "rules.alert"
+    ],
+    "properties": {
+        "target": {
+            "type": "object",
+            "properties": {
+                "custom_rule_name": {
+                    "type": "string",
+                    "description": "A custom name for this rule group"
+                }
+            },
+            "required": [
+                "custom_rule_name"
+            ],
+            "description": "Target context"
+        },
+        "common": {
+            "type": "object",
+            "properties": {
+                "severity": {
+                    "type": "string",
+                    "enum": [
+                        "critical",
+                        "warning",
+                        "info"
+                    ]
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "annotations": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "rules": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "alert": {
+                        "type": "string",
+                        "description": "Name of the alert"
+                    },
+                    "expr": {
+                        "type": "string",
+                        "description": "Raw PromQL expression"
+                    },
+                    "for": {
+                        "type": "string",
+                        "description": "Duration to wait before firing (optional)"
+                    },
+                    "labels": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    },
+                    "annotations": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "alert",
+                    "expr"
+                ]
+            }
+        }
+    },
+    "required": [
+        "target",
+        "rules"
+    ],
+    "datasource": {
+        "type": "prometheus",
+        "url": "http://localhost:9090"
+    }
+}

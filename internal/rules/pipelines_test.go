@@ -47,8 +47,8 @@ func TestPipelineProcessor_Execute(t *testing.T) {
 			name: "Metric Exists",
 			pipelines: []PipelineStep{
 				{
-					Name: "Check Metric",
-					Type: "validate_metric_exists",
+					Name:       "Check Metric",
+					Type:       "validate_metric_exists",
 					Parameters: json.RawMessage(`{"metric_name": "existing_metric"}`),
 				},
 			},
@@ -59,8 +59,8 @@ func TestPipelineProcessor_Execute(t *testing.T) {
 			name: "Metric Does Not Exist",
 			pipelines: []PipelineStep{
 				{
-					Name: "Check Metric",
-					Type: "validate_metric_exists",
+					Name:       "Check Metric",
+					Type:       "validate_metric_exists",
 					Parameters: json.RawMessage(`{"metric_name": "non_existent_metric"}`),
 				},
 			},
@@ -74,7 +74,7 @@ func TestPipelineProcessor_Execute(t *testing.T) {
 					Name: "Check Metric",
 					Type: "validate_metric_exists",
 					Condition: &PipelineCondition{
-						Property: "check",
+						Property:    "check",
 						StringValue: stringPtr("yes"),
 					},
 					Parameters: json.RawMessage(`{"metric_name": "existing_metric"}`),
@@ -90,7 +90,7 @@ func TestPipelineProcessor_Execute(t *testing.T) {
 					Name: "Check Metric",
 					Type: "validate_metric_exists",
 					Condition: &PipelineCondition{
-						Property: "check",
+						Property:    "check",
 						StringValue: stringPtr("yes"),
 					},
 					Parameters: json.RawMessage(`{"metric_name": "non_existent_metric"}`),
@@ -106,7 +106,7 @@ func TestPipelineProcessor_Execute(t *testing.T) {
 					Name: "Check Metric",
 					Type: "validate_metric_exists",
 					Condition: &PipelineCondition{
-						Property: "check",
+						Property:    "check",
 						StringValue: stringPtr("yes"),
 					},
 					Parameters: json.RawMessage(`{"metric_name": "non_existent_metric"}`),
@@ -119,8 +119,8 @@ func TestPipelineProcessor_Execute(t *testing.T) {
 			name: "Templated Metric Name",
 			pipelines: []PipelineStep{
 				{
-					Name: "Check Metric",
-					Type: "validate_metric_exists",
+					Name:       "Check Metric",
+					Type:       "validate_metric_exists",
 					Parameters: json.RawMessage(`{"metric_name": "{{ .metric }}"}`),
 				},
 			},
@@ -173,8 +173,8 @@ func TestPipelineProcessor_TargetValidation(t *testing.T) {
 			name: "Valid Target - Namespace Exists",
 			pipelines: []PipelineStep{
 				{
-					Name: "validate_namespace_metrics",
-					Type: "validate_metric_exists",
+					Name:       "validate_namespace_metrics",
+					Type:       "validate_metric_exists",
 					Parameters: json.RawMessage(`{"metric_name": "kube_namespace_status_phase"}`),
 				},
 			},
@@ -191,8 +191,8 @@ func TestPipelineProcessor_TargetValidation(t *testing.T) {
 			name: "Invalid Target - Namespace Doesn't Exist",
 			pipelines: []PipelineStep{
 				{
-					Name: "validate_namespace_metrics",
-					Type: "validate_metric_exists",
+					Name:       "validate_namespace_metrics",
+					Type:       "validate_metric_exists",
 					Parameters: json.RawMessage(`{"metric_name": "kube_pod_info"}`),
 				},
 			},
@@ -219,6 +219,3 @@ func TestPipelineProcessor_TargetValidation(t *testing.T) {
 		})
 	}
 }
-
-
-

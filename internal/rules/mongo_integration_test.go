@@ -5,12 +5,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"testing"
-	"time"
-
 	"rulemanager/internal/database"
 	"rulemanager/internal/rules"
 	"rulemanager/internal/validation"
+	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,6 +21,7 @@ const (
 )
 
 func setupTestStore(t *testing.T) *database.MongoStore {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -34,6 +34,7 @@ func setupTestStore(t *testing.T) *database.MongoStore {
 }
 
 func teardownTestStore(t *testing.T, store *database.MongoStore) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

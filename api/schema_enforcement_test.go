@@ -2,10 +2,9 @@ package api
 
 import (
 	"net/http"
-	"testing"
-
 	"rulemanager/internal/rules"
 	"rulemanager/internal/validation"
+	"testing"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
 	"github.com/stretchr/testify/assert"

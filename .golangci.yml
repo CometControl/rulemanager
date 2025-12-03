@@ -1,0 +1,74 @@
+version: "2"
+run:
+  go: "1.25"
+linters:
+  enable:
+    - copyloopvar
+    - errorlint
+    - exhaustive
+    - intrange
+    - makezero
+    - nakedret
+    - nolintlint
+    - prealloc
+    - revive
+    - thelper
+    - tparallel
+    - unconvert
+    - unparam
+    - wastedassign
+  settings:
+    copyloopvar:
+      check-alias: true
+    exhaustive:
+      default-signifies-exhaustive: true
+    nakedret:
+      # the gods will judge me but I just don't like naked returns at all
+      max-func-lines: 0
+    staticcheck:
+      checks:
+        - all
+        - -SA1019
+        - -ST1003
+        - -ST1005
+        - -ST1006
+        - -QF1001
+        - -QF1003
+        - -QF1008
+        - -ST1000
+        - -ST1020
+        - -ST1021
+        - -ST1022
+      dot-import-whitelist:
+        - github.com/jesseduffield/lazygit/pkg/integration/components
+    revive:
+      severity: warning
+      rules:
+        - name: atomic
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: error-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: time-naming
+        - name: indent-error-flow
+        - name: errorf
+        - name: superfluous-else
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - vendor/
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - vendor/

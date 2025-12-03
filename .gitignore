@@ -36,3 +36,6 @@ result
 result-*
 .direnv
 .envrc
+
+# Build artifacts
+rulemanager

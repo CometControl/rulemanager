@@ -6,11 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"testing"
-
 	"rulemanager/internal/database"
 	"rulemanager/internal/rules"
 	"rulemanager/internal/validation"
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -39,6 +38,7 @@ func (m *MockTemplateProvider) ListSchemas(ctx context.Context) ([]*database.Sch
 func (m *MockTemplateProvider) CreateSchema(ctx context.Context, name, content string) error {
 	return nil
 }
+
 func (m *MockTemplateProvider) CreateTemplate(ctx context.Context, name, content string) error {
 	return nil
 }

@@ -6,11 +6,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"testing"
-
 	"rulemanager/internal/database"
 	"rulemanager/internal/rules"
 	"rulemanager/internal/validation"
+	"testing"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -35,6 +34,7 @@ func (m *MockRuleStore) CreateRule(ctx context.Context, rule *database.Rule) err
 	rule.ID = "test-rule-id"
 	return args.Error(0)
 }
+
 func (m *MockRuleStore) GetRule(ctx context.Context, id string) (*database.Rule, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
@@ -42,18 +42,22 @@ func (m *MockRuleStore) GetRule(ctx context.Context, id string) (*database.Rule,
 	}
 	return args.Get(0).(*database.Rule), args.Error(1)
 }
+
 func (m *MockRuleStore) ListRules(ctx context.Context, offset, limit int) ([]*database.Rule, error) {
 	args := m.Called(ctx, offset, limit)
 	return args.Get(0).([]*database.Rule), args.Error(1)
 }
+
 func (m *MockRuleStore) UpdateRule(ctx context.Context, id string, rule *database.Rule) error {
 	args := m.Called(ctx, id, rule)
 	return args.Error(0)
 }
+
 func (m *MockRuleStore) DeleteRule(ctx context.Context, id string) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
 }
+
 func (m *MockRuleStore) SearchRules(ctx context.Context, filter database.RuleFilter) ([]*database.Rule, error) {
 	args := m.Called(ctx, filter)
 	return args.Get(0).([]*database.Rule), args.Error(1)
@@ -68,26 +72,32 @@ func (m *MockTemplateProvider) GetSchema(ctx context.Context, name string) (stri
 	args := m.Called(ctx, name)
 	return args.String(0), args.Error(1)
 }
+
 func (m *MockTemplateProvider) GetTemplate(ctx context.Context, name string) (string, error) {
 	args := m.Called(ctx, name)
 	return args.String(0), args.Error(1)
 }
+
 func (m *MockTemplateProvider) ListSchemas(ctx context.Context) ([]*database.Schema, error) {
 	args := m.Called(ctx)
 	return args.Get(0).([]*database.Schema), args.Error(1)
 }
+
 func (m *MockTemplateProvider) CreateSchema(ctx context.Context, name, content string) error {
 	args := m.Called(ctx, name, content)
 	return args.Error(0)
 }
+
 func (m *MockTemplateProvider) CreateTemplate(ctx context.Context, name, content string) error {
 	args := m.Called(ctx, name, content)
 	return args.Error(0)
 }
+
 func (m *MockTemplateProvider) DeleteSchema(ctx context.Context, name string) error {
 	args := m.Called(ctx, name)
 	return args.Error(0)
 }
+
 func (m *MockTemplateProvider) DeleteTemplate(ctx context.Context, name string) error {
 	args := m.Called(ctx, name)
 	return args.Error(0)

@@ -20,10 +20,10 @@ type FileStore struct {
 // NewFileStore creates a new FileStore with the given base path.
 func NewFileStore(basePath string) (*FileStore, error) {
 	// Ensure base directories exist
-	if err := os.MkdirAll(filepath.Join(basePath, "rules"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(basePath, "rules"), 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create rules directory: %w", err)
 	}
-	if err := os.MkdirAll(filepath.Join(basePath, "templates"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(basePath, "templates"), 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create templates directory: %w", err)
 	}
 
@@ -60,7 +60,7 @@ func (s *FileStore) CreateRule(ctx context.Context, rule *Rule) error {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0o644)
 }
 
 // GetRule retrieves a rule by ID from the file store.
@@ -104,7 +104,7 @@ func (s *FileStore) UpdateRule(ctx context.Context, id string, rule *Rule) error
 		return err
 	}
 
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0o644)
 }
 
 // DeleteRule removes a rule from the file store.
@@ -127,7 +127,6 @@ func (s *FileStore) ListRules(ctx context.Context, limit, offset int) ([]*Rule, 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var rules []*Rule
 	dir := filepath.Join(s.basePath, "rules")
 
 	entries, err := os.ReadDir(dir)
@@ -136,6 +135,7 @@ func (s *FileStore) ListRules(ctx context.Context, limit, offset int) ([]*Rule, 
 	}
 
 	// Read all rules first (inefficient but simple for file store)
+	rules := make([]*Rule, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
 			continue
@@ -255,7 +255,7 @@ func splitKeyPath(path string) []string {
 	// In a real scenario, might need more robust parsing
 	var keys []string
 	start := 0
-	for i := 0; i < len(path); i++ {
+	for i := range path {
 		if path[i] == '.' {
 			keys = append(keys, path[start:i])
 			start = i + 1
@@ -290,7 +290,6 @@ func (s *FileStore) ListSchemas(ctx context.Context) ([]*Schema, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var schemas []*Schema
 	dir := filepath.Join(s.basePath, "templates")
 
 	entries, err := os.ReadDir(dir)
@@ -300,6 +299,8 @@ func (s *FileStore) ListSchemas(ctx context.Context) ([]*Schema, error) {
 		}
 		return nil, err
 	}
+
+	schemas := make([]*Schema, 0, len(entries))
 
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), "_schema.json") {
@@ -394,7 +395,7 @@ func (s *FileStore) writeTemplateFile(name, typeStr, content string) error {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0o644)
 }
 
 func (s *FileStore) deleteTemplateFile(name, typeStr string) error {

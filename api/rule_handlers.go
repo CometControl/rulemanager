@@ -299,7 +299,7 @@ func (h *RuleHandlers) PlanRule(ctx context.Context, input *CreateRuleInput) (*P
 		return nil, huma.Error400BadRequest("'rules' array is required and cannot be empty")
 	}
 
-	var plans []*rules.RulePlan
+	plans := make([]*rules.RulePlan, 0, len(params.Rules))
 
 	for i, ruleItem := range params.Rules {
 		singleRuleParams := struct {

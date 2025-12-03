@@ -6,9 +6,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
-
 	"rulemanager/internal/database"
+	"strings"
 )
 
 // SeedTemplates populates the TemplateProvider with default templates from the filesystem.

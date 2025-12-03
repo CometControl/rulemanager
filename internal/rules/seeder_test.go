@@ -18,14 +18,14 @@ func TestSeedTemplates(t *testing.T) {
 	// Create structure
 	baseDir := filepath.Join(tmpDir, "_base")
 	goTemplatesDir := filepath.Join(tmpDir, "go_templates")
-	assert.NoError(t, os.MkdirAll(baseDir, 0755))
-	assert.NoError(t, os.MkdirAll(goTemplatesDir, 0755))
+	assert.NoError(t, os.MkdirAll(baseDir, 0o755))
+	assert.NoError(t, os.MkdirAll(goTemplatesDir, 0o755))
 
 	// Create dummy files
 	schemaContent := `{"type":"object"}`
 	templateContent := `{{ .foo }}`
-	assert.NoError(t, os.WriteFile(filepath.Join(baseDir, "test_schema.json"), []byte(schemaContent), 0644))
-	assert.NoError(t, os.WriteFile(filepath.Join(goTemplatesDir, "test_template.tmpl"), []byte(templateContent), 0644))
+	assert.NoError(t, os.WriteFile(filepath.Join(baseDir, "test_schema.json"), []byte(schemaContent), 0o644))
+	assert.NoError(t, os.WriteFile(filepath.Join(goTemplatesDir, "test_template.tmpl"), []byte(templateContent), 0o644))
 
 	t.Run("Seeds new templates", func(t *testing.T) {
 		mockProvider := new(MockTemplateProvider)

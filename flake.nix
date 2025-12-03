@@ -19,6 +19,8 @@
             delve
             golangci-lint
             gotools
+            gnumake
+            gofumpt
           ];
 
           shellHook = ''

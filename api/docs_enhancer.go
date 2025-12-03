@@ -7,9 +7,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
-
 	"rulemanager/internal/database"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 )

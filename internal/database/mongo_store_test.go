@@ -16,11 +16,14 @@ const (
 )
 
 func setupTestStore(t *testing.T) *MongoStore {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	store, err := NewMongoStore(ctx, testConnectionString, testDBName)
-	require.NoError(t, err)
+	if err != nil {
+		t.Skipf("Skipping MongoDB integration test: %v", err)
+	}
 
 	// Clean up database before test
 	err = store.database.Drop(ctx)
@@ -30,6 +33,7 @@ func setupTestStore(t *testing.T) *MongoStore {
 }
 
 func teardownTestStore(t *testing.T, store *MongoStore) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

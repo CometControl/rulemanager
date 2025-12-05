@@ -55,7 +55,6 @@ func TestMongoStore_Rules(t *testing.T) {
 		rule := &Rule{
 			TemplateName: "test-template",
 			Parameters:   json.RawMessage(`{"key": "value"}`),
-			For:          "5m",
 		}
 
 		err := store.CreateRule(ctx, rule)

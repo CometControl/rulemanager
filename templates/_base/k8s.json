@@ -55,6 +55,11 @@
         "common": {
             "type": "object",
             "properties": {
+                "for": {
+                    "type": "string",
+                    "description": "The duration to wait before firing the alert (e.g. 5m)",
+                    "default": "5m"
+                },
                 "severity": {
                     "type": "string",
                     "enum": [

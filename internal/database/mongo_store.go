@@ -24,7 +24,6 @@ type mongoRule struct {
 	ID           string    `bson:"_id,omitempty"`
 	TemplateName string    `bson:"templateName"`
 	Parameters   bson.M    `bson:"parameters"`
-	For          string    `bson:"for,omitempty"`
 	CreatedAt    time.Time `bson:"createdAt"`
 	UpdatedAt    time.Time `bson:"updatedAt"`
 }
@@ -40,7 +39,6 @@ func toMongoRule(r *Rule) (*mongoRule, error) {
 		ID:           r.ID,
 		TemplateName: r.TemplateName,
 		Parameters:   params,
-		For:          r.For,
 		CreatedAt:    r.CreatedAt,
 		UpdatedAt:    r.UpdatedAt,
 	}, nil
@@ -55,7 +53,6 @@ func fromMongoRule(mr *mongoRule) (*Rule, error) {
 		ID:           mr.ID,
 		TemplateName: mr.TemplateName,
 		Parameters:   params,
-		For:          mr.For,
 		CreatedAt:    mr.CreatedAt,
 		UpdatedAt:    mr.UpdatedAt,
 	}, nil

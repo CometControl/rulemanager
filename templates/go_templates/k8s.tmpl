@@ -4,7 +4,7 @@
 {{- if eq $rule.rule_type "cpu" }}
 - alert: HighCPUUsage_{{ $target.workload }}
   expr: sum(rate(container_cpu_usage_seconds_total{namespace="{{ $target.namespace }}", pod=~"{{ $target.workload }}-.*"}[5m])) by (pod) {{ $rule.operator }} {{ $rule.threshold }}
-  for: 5m
+  for: {{ if $common.for }}{{ $common.for }}{{ else }}5m{{ end }}
   labels:
     {{- if $common.severity }}
     severity: {{ $common.severity }}
@@ -22,7 +22,7 @@
 {{- else if eq $rule.rule_type "ram" }}
 - alert: HighMemoryUsage_{{ $target.workload }}
   expr: sum(container_memory_working_set_bytes{namespace="{{ $target.namespace }}", pod=~"{{ $target.workload }}-.*"}) by (pod) {{ $rule.operator }} {{ $rule.threshold }}
-  for: 5m
+  for: {{ if $common.for }}{{ $common.for }}{{ else }}5m{{ end }}
   labels:
     {{- if $common.severity }}
     severity: {{ $common.severity }}
@@ -40,7 +40,7 @@
 {{- else if eq $rule.rule_type "service_up" }}
 - alert: ServiceDown_{{ $rule.service_name }}
   expr: up{job="{{ $rule.service_name }}", namespace="{{ $target.namespace }}"} == 0
-  for: 1m
+  for: {{ if $common.for }}{{ $common.for }}{{ else }}1m{{ end }}
   labels:
     {{- if $common.severity }}
     severity: {{ $common.severity }}

@@ -21,6 +21,7 @@
             gotools
             gnumake
             gofumpt
+            git
           ];
 
           shellHook = ''

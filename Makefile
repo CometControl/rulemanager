@@ -39,3 +39,20 @@ lint-fix:
 .PHONY: vendor
 vendor:
 	go mod vendor && go mod tidy
+
+# Docker helpers
+.PHONY: docker-up
+docker-up:
+	docker-compose up -d
+
+.PHONY: docker-down
+docker-down:
+	docker-compose down
+
+.PHONY: docker-logs
+docker-logs:
+	docker-compose logs -f
+
+.PHONY: docker-status
+docker-status:
+	docker-compose ps

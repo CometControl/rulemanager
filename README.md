@@ -172,8 +172,10 @@ The **Template** defines how the validated parameters are transformed into the f
 
 ### Prerequisites
 
-*   **Go**: Version 1.21 or higher.
-*   **MongoDB**: (Optional) For production storage. The service can run in "Local Mode" using the filesystem.
+*   **Go**: Version 1.25 or higher.
+*   **Docker & Docker Compose**: Required for running the database.
+    *   **WSL2 Users**: Ensure Docker Desktop is installed and the specific distro is enabled in "WSL Integration" settings.
+    *   **Linux Users**: Ensure your user is in the `docker` group.
 
 ### Installation
 
@@ -199,13 +201,24 @@ Key configuration sections:
 
 ### Running the Application
 
-To run the application in Local Mode (using the `./data` directory for storage):
+The project includes a `Makefile` to simplify common tasks.
 
-```bash
-./rulemanager
-```
+1.  **Start the Database**:
+    ```bash
+    make docker-up
+    ```
+    This spins up a MongoDB instance in Docker (persistent data in `./data/mongo`).
 
-Ensure your `config.yaml` is set up correctly or pass configuration via environment variables.
+2.  **Run the Service**:
+    ```bash
+    make run
+    ```
+    The service will connect to the local MongoDB instance.
+
+3.  **Manage Database**:
+    *   `make docker-status`: Check container status.
+    *   `make docker-logs`: View database logs.
+    *   `make docker-down`: Stop and remove containers.
 
 ## Usage
 

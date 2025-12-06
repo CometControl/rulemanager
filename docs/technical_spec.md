@@ -86,7 +86,14 @@ Uniqueness is enforced dynamically based on the `uniqueness_keys` defined in the
 
 ## 5. Integration
 
-### 5.1 VictoriaMetrics
-The service generates a YAML file compatible with `vmalert`.
-*   **Format**: Standard Prometheus rule groups.
-*   **Grouping**: Rules are grouped by "monitoring world" (derived from template name).
+## 6. Infrastructure
+
+### 6.1 Development Environment
+The development environment is containerized using Docker Compose to ensure consistency across different setups (Linux, WSL2).
+*   **Database**: MongoDB Community Edition running in a Docker container.
+*   **Persistence**: Data is persisted locally via bind-mounts to `./data/mongo` to allow for easy inspection and persistence between restarts.
+*   **Orchestration**: Managed via `Makefile` aliases (`make docker-up`, `make run`).
+
+### 6.2 Deployment
+The application is designed to be deployed as a stateless microservice, with the database being the only stateful component.
+
